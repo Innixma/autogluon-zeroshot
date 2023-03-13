@@ -40,6 +40,17 @@ class PortfolioCV:
         test_score = total_test_score / total_num_datasets
         return test_score
 
+    def get_train_score_overall(self):
+        total_num_datasets = 0
+        total_train_score = 0
+        for portfolio in self.portfolios:
+            train_score = portfolio.train_score
+            num_datasets = len(portfolio.train_datasets_fold)
+            total_num_datasets += num_datasets
+            total_train_score += train_score*num_datasets
+        train_score = total_train_score / total_num_datasets
+        return train_score
+
     def are_test_folds_unique(self) -> bool:
         """
         Return True if each test dataset is only present in one fold.
@@ -63,3 +74,11 @@ class PortfolioCV:
         for p in portfolio_cv_list:
             portfolios += p.portfolios
         return PortfolioCV(portfolios=portfolios)
+
+    def get_overfitting_delta_overall(self) -> float:
+        """
+        Returns the amount of overfitting that has occurred.
+        AKA: How overoptimistic the portfolio is on training compared to test
+        Lower = Better
+        """
+        return self.get_test_score_overall() - self.get_train_score_overall()
