@@ -11,7 +11,11 @@ class Portfolio:
                  test_datasets: List[str] = None,
                  train_datasets_fold: List[str] = None,
                  test_datasets_fold: List[str] = None,
-                 fold: int = None):
+                 fold: int = None,
+                 split: int = None,
+                 repeat: int = None,
+                 step: int = None,
+                 n_configs_avail: int = None):
         self.configs = configs
         self.train_score = train_score
         self.test_score = test_score
@@ -20,6 +24,14 @@ class Portfolio:
         self.train_datasets_fold = train_datasets_fold
         self.test_datasets_fold = test_datasets_fold
         self.fold = fold
+        self.split = split
+        self.repeat = repeat
+
+        # Optional, the step in which this portfolio was generated
+        # (relevant when portfolio is generated through iterative steps)
+        self.step = step
+
+        self.n_configs_avail = n_configs_avail  # Number of configs to choose from at fit time
 
 
 class PortfolioCV:

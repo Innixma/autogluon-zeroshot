@@ -41,15 +41,16 @@ def run_zs_simulation(zsc: ZeroshotSimulatorContext, config_scorer, n_splits=10,
 def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
                        title: str = None,
                        footnote: str = None,
-                       save_prefix: str = None):
+                       save_prefix: str = None,
+                       x_axis_col: str = 'step'):
     if title is None:
         title = f"Overfitting Delta"
     fig = plt.figure(dpi=300)
     ax = fig.subplots()
     for portfolio_cv_list in portfolio_cv_lists:
-        df, num_train_tasks, num_test_tasks = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
-        ax.scatter(df['num_configs'], df['overfit_delta'], alpha=0.5, label=f'train_tasks={num_train_tasks}')
-    ax.set_xlabel('num_configs')
+        df, num_train_tasks, num_test_tasks, n_configs_avail = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
+        ax.scatter(df[x_axis_col], df['overfit_delta'], alpha=0.5, label=f'tr_tasks={num_train_tasks}, n_conf={n_configs_avail}')
+    ax.set_xlabel(x_axis_col)
     ax.set_ylabel('Overfit delta rank (lower is better)')
     ax.set_title(title)
     if footnote is not None:
@@ -76,13 +77,13 @@ def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
     # ax.scatter(df['num_configs'], df['test_score'], alpha=0.5, label='test')
     # ax.scatter(df['num_configs'], df['train_score'], alpha=0.5, label='train')
     for ax, portfolio_cv_list in zip(axes.flat[:num_lists], portfolio_cv_lists):
-        df, num_train_tasks, num_test_tasks = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
-        ax.scatter(df['num_configs'], df['test_score'], alpha=0.5, label=f'test')
-        ax.scatter(df['num_configs'], df['train_score'], alpha=0.5, label=f'train')
+        df, num_train_tasks, num_test_tasks, n_configs_avail = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
+        ax.scatter(df[x_axis_col], df['test_score'], alpha=0.5, label=f'test')
+        ax.scatter(df[x_axis_col], df['train_score'], alpha=0.5, label=f'train')
 
         # ax.set_xlabel('num_configs')  # Add an x-label to the axes.
         # ax.set_ylabel('rank (lower is better)')  # Add a y-label to the axes.
-        ax.set_title(f'train_tasks={num_train_tasks}')  # Add a title to the axes.
+        ax.set_title(f'train_tasks={num_train_tasks}, n_configs={n_configs_avail}')  # Add a title to the axes.
         ax.grid()
     axes.flat[0].legend()
     # axes[0].set_xlabel('num_configs')  # Add an x-label to the axes.
@@ -90,7 +91,7 @@ def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
     if footnote is not None:
         plt.figtext(0.99, 0.01, footnote, horizontalalignment='right')
     fig.suptitle(title)
-    fig.supxlabel('num_configs')
+    fig.supxlabel(x_axis_col)
     fig.supylabel('rank (lower is better)')
     if save_prefix is not None:
         save_path = f'{save_prefix}train_test_comparison.png'
@@ -105,6 +106,7 @@ def get_overfit_delta_df(portfolio_cv_list: List[PortfolioCV]):
 
     num_train_tasks = None
     num_test_tasks = None
+    n_configs_avail = None
 
     for portfolio_cv in portfolio_cv_list:
         portfolios = portfolio_cv.portfolios
@@ -112,7 +114,10 @@ def get_overfit_delta_df(portfolio_cv_list: List[PortfolioCV]):
             num_train_tasks = len(portfolios[0].train_datasets_fold)
         if num_test_tasks is None:
             num_test_tasks = len(portfolios[0].test_datasets_fold)
-        num_configs = len(portfolios[0].configs)
+        if n_configs_avail is None:
+            n_configs_avail = portfolios[0].n_configs_avail
+        n_configs = len(portfolios[0].configs)
+        step = portfolios[0].step
         # print(k)
         # for i in range(len(portfolios)):
         #     print(f'Fold {portfolios[i].fold} Selected Configs: {portfolios[i].configs}')
@@ -120,14 +125,15 @@ def get_overfit_delta_df(portfolio_cv_list: List[PortfolioCV]):
         # for i in range(len(portfolios)):
         #     print(f'Fold {portfolios[i].fold} Test Score: {portfolios[i].test_score}')
 
-        df_dict['num_configs'].append(num_configs)
+        df_dict['n_configs'].append(n_configs)
+        df_dict['step'].append(step)
         df_dict['test_score'].append(portfolio_cv.get_test_score_overall())
         df_dict['train_score'].append(portfolio_cv.get_train_score_overall())
 
     import pandas as pd
     df = pd.DataFrame(df_dict)
     df['overfit_delta'] = df['test_score'] - df['train_score']
-    return df, num_train_tasks, num_test_tasks
+    return df, num_train_tasks, num_test_tasks, n_configs_avail
 
 
 def run_zs_simulation_debug(zsc: ZeroshotSimulatorContext,
@@ -184,9 +190,11 @@ def run_zs_simulation_debug(zsc: ZeroshotSimulatorContext,
     utcnow = datetime.utcnow()
     timestamp = utcnow.strftime("%Y%m%d_%H%M%S")
     plot_results_multi(portfolio_cv_lists,
-                       title=f'Overfit Delta: n_configs={len(zsc.get_configs())}, n_tasks={len(zsc.get_dataset_folds())}, '
-                             f'n_splits={n_splits}, n_repeats={n_repeats}',
-                       footnote=f'scorer={config_scorer.__class__.__name__}',
+                       title=f'Overfit Delta: n_configs={zs_config_generator_cv.get_n_configs()}, '
+                             f'n_tasks={zs_config_generator_cv.get_n_tasks()}, '
+                             f'n_splits={zs_config_generator_cv.n_splits}, '
+                             f'n_repeats={zs_config_generator_cv.n_repeats}',
+                       footnote=f'scorer={zs_config_generator_cv.config_scorer.__class__.__name__}',
                        save_prefix=f'plots/{timestamp}/')
 
     # plot_results(portfolio_cv_dict)
