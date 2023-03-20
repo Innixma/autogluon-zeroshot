@@ -1,20 +1,7 @@
 from typing import List
 
+import numpy as np
 import pandas as pd
-
-
-def get_rank(error: float, error_lst: List[float], higher_is_better: bool = False) -> float:
-    rank = 1
-    for e in error_lst:
-        if error == e:
-            rank += 0.5
-        elif higher_is_better:
-            if error < e:
-                rank += 1
-        else:
-            if error > e:
-                rank += 1
-    return rank
 
 
 class RankScorer:
@@ -22,12 +9,31 @@ class RankScorer:
                  df_results_by_dataset: pd.DataFrame,
                  datasets: List[str],
                  metric_error_col: str = 'metric_error',
-                 dataset_col: str = 'dataset'):
-        self.error_dict  = {}
-        for i, dataset in enumerate(datasets):
-            automl_error_list = sorted(list(df_results_by_dataset[df_results_by_dataset[dataset_col] == dataset][metric_error_col]))
-            self.error_dict[dataset] = automl_error_list
+                 dataset_col: str = 'dataset',
+                 framework_col: str = 'framework',
+                 pct: bool = False,
+                 ):
+        """
+        :param df_results_by_dataset: Dataframe of method performance containing columns `metric_error_col`,
+        `dataset_col` and `framework_col`.
+        :param datasets: datasets to consider
+        :param pct: whether or not to display the returned rankings in percentile form.
+        """
+        assert all(col in df_results_by_dataset for col in [metric_error_col, dataset_col, framework_col])
+        all_datasets = set(df_results_by_dataset[dataset_col].unique())
+        for dataset in datasets:
+            assert dataset in all_datasets, f"dataset {dataset} not present in passed evaluations"
+        self.pct = pct
+        df_pivot = df_results_by_dataset.pivot_table(values=metric_error_col, index=dataset_col, columns=framework_col)
+        df_pivot.values.sort(axis=1)
+        self.error_dict = {dataset: df_pivot.loc[dataset] for dataset in datasets}
 
     def rank(self, dataset: str, error: float) -> float:
-        rank = get_rank(error, self.error_dict[dataset])
+        baseline_scores = self.error_dict[dataset]
+
+        rank = np.searchsorted(baseline_scores, error)  # value in [0, num-baselines)]
+        if self.pct:
+            rank /= len(baseline_scores)
+        else:
+            rank += 1  # value in [1, 1 + num-baselines)]
         return rank
