@@ -33,7 +33,7 @@ def run_zs_simulation(zsc: ZeroshotSimulatorContext, config_scorer, n_splits=10,
     print(f'Overall (CV) | '
           f'Test Score: {portfolio_cv.get_test_score_overall()} | '
           f'Train Score: {portfolio_cv.get_train_score_overall()} | '
-          f'Overfit Score: {portfolio_cv.get_overfitting_delta_overall()}')
+          f'Overfit Score: {portfolio_cv.get_test_train_rank_diff()}')
 
     return portfolio_cv
 
@@ -48,7 +48,7 @@ def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
     fig = plt.figure(dpi=300)
     ax = fig.subplots()
     for portfolio_cv_list in portfolio_cv_lists:
-        df, num_train_tasks, num_test_tasks, n_configs_avail = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
+        df, num_train_tasks, num_test_tasks, n_configs_avail = get_test_train_rank_diff_df(portfolio_cv_list=portfolio_cv_list)
         ax.scatter(df[x_axis_col], df['overfit_delta'], alpha=0.5, label=f'tr_tasks={num_train_tasks}, n_conf={n_configs_avail}')
     ax.set_xlabel(x_axis_col)
     ax.set_ylabel('Overfit delta rank (lower is better)')
@@ -77,7 +77,7 @@ def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
     # ax.scatter(df['num_configs'], df['test_score'], alpha=0.5, label='test')
     # ax.scatter(df['num_configs'], df['train_score'], alpha=0.5, label='train')
     for ax, portfolio_cv_list in zip(axes.flat[:num_lists], portfolio_cv_lists):
-        df, num_train_tasks, num_test_tasks, n_configs_avail = get_overfit_delta_df(portfolio_cv_list=portfolio_cv_list)
+        df, num_train_tasks, num_test_tasks, n_configs_avail = get_test_train_rank_diff_df(portfolio_cv_list=portfolio_cv_list)
         ax.scatter(df[x_axis_col], df['test_score'], alpha=0.5, label=f'test')
         ax.scatter(df[x_axis_col], df['train_score'], alpha=0.5, label=f'train')
 
@@ -100,7 +100,7 @@ def plot_results_multi(portfolio_cv_lists: List[List[PortfolioCV]],
     plt.show()
 
 
-def get_overfit_delta_df(portfolio_cv_list: List[PortfolioCV]):
+def get_test_train_rank_diff_df(portfolio_cv_list: List[PortfolioCV]):
     from collections import defaultdict
     df_dict = defaultdict(list)
 

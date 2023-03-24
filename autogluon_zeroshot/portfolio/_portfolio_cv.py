@@ -87,7 +87,7 @@ class PortfolioCV:
             portfolios += p.portfolios
         return PortfolioCV(portfolios=portfolios)
 
-    def get_overfitting_delta_overall(self) -> float:
+    def get_test_train_rank_diff(self) -> float:
         """
         Returns the amount of overfitting that has occurred.
         AKA: How overoptimistic the portfolio is on training compared to test

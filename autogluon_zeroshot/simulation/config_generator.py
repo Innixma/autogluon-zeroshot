@@ -57,15 +57,15 @@ class ZeroshotConfigGenerator:
             iteration += 1
 
             time_start = time.time()
-            best_next_config, train_score_best = selector(valid_configs, zeroshot_configs, config_scorer)
+            best_next_config, best_train_score = selector(valid_configs, zeroshot_configs, config_scorer)
             time_end = time.time()
 
             zeroshot_configs.append(best_next_config)
             fit_time = time_end - time_start
-            msg = f'{iteration}\t: Train: {round(train_score_best, 2)}'
+            msg = f'{iteration}\t: Train: {round(best_train_score, 2)}'
             if config_scorer_test:
                 test_score = config_scorer_test.score(zeroshot_configs)
-                msg += f'\t| Test: {round(test_score, 2)} \t| Overfit: {round(test_score-train_score_best, 2)}'
+                msg += f'\t| Test: {round(test_score, 2)} \t| Overfit: {round(test_score-best_train_score, 2)}'
             else:
                 test_score = None
             msg += f' | {round(fit_time, 2)}s | {self.backend} | {best_next_config}'
@@ -74,7 +74,7 @@ class ZeroshotConfigGenerator:
                 configs=copy.deepcopy(zeroshot_configs),
                 new_config=best_next_config,
                 step=iteration,
-                train_score=train_score_best,
+                train_score=best_train_score,
                 test_score=test_score,
                 num_configs=len(zeroshot_configs),
                 fit_time=fit_time,
