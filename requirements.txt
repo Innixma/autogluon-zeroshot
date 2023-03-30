@@ -1,3 +1,4 @@
 autogluon[tabular]
 syne-tune[extra]
 ray
+pytest
