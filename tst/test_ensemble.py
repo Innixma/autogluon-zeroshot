@@ -6,6 +6,7 @@ from autogluon_zeroshot.utils import catchtime
 from scripts.method_comparison.evaluate_ensemble import evaluate_ensemble
 
 
+@pytest.mark.skip("require external data")
 @pytest.mark.parametrize("backend", ["native", "ray"])
 def test_ensemble_computation(backend):
     with catchtime("eval"):
@@ -18,5 +19,6 @@ def test_ensemble_computation(backend):
             test_datasets=[],
             ensemble_size=5,
             backend=backend,
+            bag=False,
         )
         assert error == 4.75
