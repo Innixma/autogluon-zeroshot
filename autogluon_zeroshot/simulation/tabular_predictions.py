@@ -36,11 +36,14 @@ class TabularModelPredictions:
         return self._predict(dataset, fold, splits, models)
 
     def models_available_in_dataset(self, dataset: str, fold: int) -> List[str]:
-        """:returns the models available on both validation and test splits"""
+        """:returns the models available on both validation and test splits on all folds."""
         raise NotImplementedError()
 
     @property
     def models(self) -> List[str]:
+        """
+        :return: list of models present in at least one dataset.
+        """
         raise NotImplementedError()
 
     def restrict_models(self, models: List[str]):
@@ -49,8 +52,6 @@ class TabularModelPredictions:
         reduce memory footprint. The behavior depends on the data structure used. For pickle/full data structure,
         the data is immediately sliced. For lazy representation, the data is sliced on the fly when querying predictions.
         """
-        # FIXME: self.models is not the full model list, only the dense model list
-        #  (aka models with a result for all datasets)
         models_present = self.models
         for m in models:
             assert m in models_present, f"cannot restrict {m} which is not in available models {models_present}."
@@ -58,6 +59,16 @@ class TabularModelPredictions:
 
     def _restrict_models(self, models: List[str]):
         raise NotImplementedError()
+
+    def restrict_datasets(self, datasets: List[str]):
+        for d in datasets:
+            assert d in self.datasets, f"cannot restrict {d} which is not in available datasets {self.datasets()}."
+        self._restrict_datasets(datasets)
+
+    def _restrict_datasets(self, datasets: List[str]):
+        for dataset in self.datasets:
+            if dataset not in datasets:
+                self.remove_dataset(dataset)
 
     @property
     def datasets(self) -> List[str]:
@@ -98,43 +109,6 @@ class TabularPicklePredictions(TabularModelPredictions):
     def from_dict(cls, pred_dict: TabularPredictionsDict, output_dir: str = None):
         return cls(pred_dict=pred_dict)
 
-    # TODO: Implement in lazy
-    def is_dense(self) -> bool:
-        """
-        Return True if all datasets have all models
-        """
-        models_dense = self.models
-        models_sparse = self.get_models(present_in_all=False)
-        return set(models_dense) == set(models_sparse)
-
-    # TODO: Implement in lazy
-    def is_empty(self) -> bool:
-        """
-        Return True if no models or datasets exist
-        """
-        return len(self.datasets) == 0 or len(self.get_models(present_in_all=False)) == 0
-
-    # TODO: Implement in lazy
-    def force_to_dense(self, prune_method: str = 'dataset', assert_not_empty: bool = True):
-        """
-        Force the pred dict to contain only dense results (no missing result for any dataset/model)
-
-        :param prune_method:
-            If 'dataset', prunes any dataset that doesn't contain results for all models
-            If 'model', prunes any model that doesn't have results for all datasets
-        """
-
-        if prune_method == 'dataset':
-            valid_models = self.get_models(present_in_all=False)
-            valid_datasets = self.get_datasets_with_models(models=valid_models)
-            self.restrict_datasets(datasets=valid_datasets)
-        elif prune_method == 'model':
-            valid_models = self.get_models(present_in_all=True)
-            self.restrict_models(models=valid_models)
-        assert self.is_dense()
-        if assert_not_empty:
-            assert not self.is_empty()
-
     def save(self, filename: str):
         save_pkl(filename, self.pred_dict)
 
@@ -151,47 +125,23 @@ class TabularPicklePredictions(TabularModelPredictions):
     def models_available_in_dataset(self, dataset: str) -> List[str]:
         models = []
         for fold in self.folds:
-            for split in ["pred_proba_dict_val", "pred_proba_dict_test"]:
-                models.append(set(self.pred_dict[dataset][fold][split].keys()))
+            if fold in self.pred_dict[dataset]:
+                for split in ["pred_proba_dict_val", "pred_proba_dict_test"]:
+                    models.append(set(self.pred_dict[dataset][fold][split].keys()))
+            else:
+                # if a fold is missing, no models has all folds.
+                return []
         # returns models that appears in all lists, eg that are available for all folds and splits
-        return list(set.intersection(*map(set, models)))
+        return sorted(list(set.intersection(*map(set, models))))
 
     @property
     def models(self) -> List[str]:
         models = []
         for dataset in self.datasets:
-            for fold in self.folds:
-                for split in ["pred_proba_dict_val", "pred_proba_dict_test"]:
-                    models.append(set(self.pred_dict[dataset][fold][split].keys()))
+            models.append(self.models_available_in_dataset(dataset))
         # returns models that appears in all lists, eg that are available for all datasets, folds and splits
-        return list(set.intersection(*map(set, models)))
+        return sorted(set([x for l in models for x in l]))
 
-    # TODO: Implement in lazy
-    def get_models(self, present_in_all=False) -> List[str]:
-        """
-        Gets all valid models
-
-        :param present_in_all:
-            If True, only returns models present in every dataset (dense)
-            If False, returns every model that appears in at least 1 dataset (sparse)
-        """
-        if present_in_all:
-            return self.models
-        models = set()
-        for dataset in self.datasets:
-            for fold in self.folds:
-                for split in ["pred_proba_dict_val", "pred_proba_dict_test"]:
-                    for k in self.pred_dict[dataset][fold][split].keys():
-                        models.add(k)
-        # returns models that appears in all lists, eg that are available for all datasets, folds and splits
-        return list(models)
-
-    def restrict_models(self, models: List[str]):
-        # FIXME: Make this the default restrict_models logic. Implement this sanity check in lazy mode
-        models_present = self.get_models(present_in_all=False)
-        for m in models:
-            assert m in models_present, f"cannot restrict {m} which is not in available models {models_present}."
-        self._restrict_models(models)
 
     def _restrict_models(self, models: List[str]):
         size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
@@ -208,41 +158,6 @@ class TabularPicklePredictions(TabularModelPredictions):
                         self.pred_dict[t][f]['pred_proba_dict_test'].pop(k)
         size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
         print(f'NEW zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
-
-    def restrict_datasets(self, datasets: List[str]):
-        task_names = self.datasets
-        task_names_set = set(task_names)
-        for d in datasets:
-            if d not in task_names_set:
-                raise AssertionError(f'Trying to remove dataset that does not exist! ({d})')
-        valid_datasets_set = set(datasets)
-        size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
-        print(f'Restricting Datasets... (Shrinking from {len(self.datasets)} -> {len(valid_datasets_set)} datasets)')
-        print(f'OLD zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
-        for t in task_names:
-            if t not in datasets:
-                self.pred_dict.pop(t)
-        size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
-        print(f'NEW zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
-
-    def get_datasets_with_models(self, models: List[str]) -> List[str]:
-        """
-        Get list of datasets that have results for all input models
-        """
-        task_names = self.datasets
-        configs = set(models)
-        valid_tasks = []
-        for t in task_names:
-            is_valid = True
-            available_folds = list(self.pred_dict[t].keys())
-            for f in available_folds:
-                model_keys = self.pred_dict[t][f]['pred_proba_dict_val'].keys()
-                for m in configs:
-                    if m not in model_keys:
-                        is_valid = False
-            if is_valid:
-                valid_tasks.append(t)
-        return valid_tasks
 
     @property
     def datasets(self) -> List[str]:

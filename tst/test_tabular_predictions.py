@@ -87,7 +87,6 @@ def test_synthetic_data(cls):
     #  format is not  currently used in experiments.
 ])
 def test_restrict_models(cls):
-
     num_models = 13
     num_folds = 3
     dataset_shapes = {
@@ -113,3 +112,125 @@ def test_restrict_models(cls):
             for i, model in enumerate(sub_models):
                 assert np.allclose(val_score[i], generate_dummy(val_shape, sub_models)[model])
                 assert np.allclose(test_score[i], generate_dummy(test_shape, sub_models)[model])
+
+
+@pytest.mark.parametrize("cls", [
+    TabularPicklePredictions,
+    TabularPicklePerTaskPredictions,
+])
+def test_restrict_datasets(cls):
+    num_models = 13
+    num_folds = 3
+    dataset_shapes = {
+        "d1": ((20,), (50,)),
+        "d2": ((10,), (5,)),
+        "d3": ((4, 3), (8, 3)),
+    }
+    models = [f"{i}" for i in range(num_models)]
+    pred_dict = generate_artificial_dict(num_folds, models, dataset_shapes)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        pred_proba = cls.from_dict(pred_dict=pred_dict, output_dir=tmpdirname)
+        pred_proba.restrict_datasets(["d1", "d3"])
+        assert pred_proba.datasets == ["d1", "d3"]
+
+        # make sure shapes matches what is expected
+        for dataset, (val_shape, test_shape) in dataset_shapes.items():
+            if dataset == "d2":
+                continue
+            print(dataset, val_shape, test_shape)
+            val_score, test_score = pred_proba.predict(dataset=dataset, fold=2, models=models, splits=["val", "test"])
+            assert val_score.shape == tuple([num_models] + list(val_shape))
+            assert test_score.shape == tuple([num_models] + list(test_shape))
+            for i, model in enumerate(models):
+                assert np.allclose(val_score[i], generate_dummy(val_shape, models)[model])
+                assert np.allclose(test_score[i], generate_dummy(test_shape, models)[model])
+
+@pytest.mark.parametrize("cls", [
+    TabularPicklePredictions,
+    TabularPicklePerTaskPredictions,
+])
+def test_restrict_datasets_dense(cls):
+    val_shape = (4, 3)
+    test_shape = (8, 3)
+    pred_dict = {
+        "d1": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, ["1", "2", "3"]),
+                "pred_proba_dict_test": generate_dummy(test_shape, ["1", "2", "3"]),
+            }
+            for fold in range(10)
+        },
+        "d2": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, ["2", "3"]),
+                "pred_proba_dict_test": generate_dummy(test_shape, ["1", "3"]),
+            }
+            for fold in range(10)
+        },
+        "d3": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, ["1", "2", "3"]),
+                "pred_proba_dict_test": generate_dummy(test_shape, ["1", "2", "3"]),
+            }
+            for fold in range(10)
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        pred_proba = cls.from_dict(pred_dict=pred_dict, output_dir=tmpdirname)
+
+        models = ["1", "2", "3"]
+        valid_datasets = [
+            dataset
+            for dataset in pred_proba.datasets
+            if all(m in pred_proba.models_available_in_dataset(dataset) for m in models)
+        ]
+        assert valid_datasets == ["d1", "d3"]
+        pred_proba.restrict_datasets(valid_datasets)
+        assert pred_proba.datasets == ["d1", "d3"]
+
+
+@pytest.mark.parametrize("cls", [
+    TabularPicklePredictions,
+    TabularPicklePerTaskPredictions,
+])
+def test_restrict_datasets_missing_fold(cls):
+    val_shape = (4, 3)
+    test_shape = (8, 3)
+    models = ["1", "2", "3"]
+
+    pred_dict = {
+        "d1": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, models),
+                "pred_proba_dict_test": generate_dummy(test_shape, models),
+            }
+            for fold in range(10)
+        },
+        "d2": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, models),
+                "pred_proba_dict_test": generate_dummy(test_shape, models),
+            }
+            for fold in [x for x in range(10) if x != 3]
+        },
+        "d3": {
+            fold: {
+                "pred_proba_dict_val": generate_dummy(val_shape, models),
+                "pred_proba_dict_test": generate_dummy(test_shape, models),
+            }
+            for fold in range(10)
+        },
+    }
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        pred_proba = cls.from_dict(pred_dict=pred_dict, output_dir=tmpdirname)
+        assert pred_proba.models_available_in_dataset("d1") == models
+        assert pred_proba.models_available_in_dataset("d2") == []
+        assert pred_proba.models_available_in_dataset("d3") == models
+        valid_datasets = [
+            dataset
+            for dataset in pred_proba.datasets
+            if all(m in pred_proba.models_available_in_dataset(dataset) for m in models)
+        ]
+        assert valid_datasets == ["d1", "d3"]
+        pred_proba.restrict_datasets(valid_datasets)
+        assert pred_proba.datasets == ["d1", "d3"]
