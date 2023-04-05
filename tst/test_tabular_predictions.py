@@ -234,3 +234,80 @@ def test_restrict_datasets_missing_fold(cls):
         assert valid_datasets == ["d1", "d3"]
         pred_proba.restrict_datasets(valid_datasets)
         assert pred_proba.datasets == ["d1", "d3"]
+
+
+@pytest.mark.parametrize("cls", [
+    TabularPicklePredictions,
+    TabularPicklePerTaskPredictions,
+])
+def test_advanced(cls):
+    """Tests a variety of advanced functionality"""
+    num_models = 13
+    num_folds = 3
+    dataset_shapes = {
+        "d1": ((20,), (50,)),
+        "d2": ((10,), (5,)),
+        "d3": ((4, 3), (8, 3)),
+    }
+    models = [f"{i}" for i in range(num_models)]
+    pred_dict = generate_artificial_dict(num_folds, models, dataset_shapes)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        pred_proba = cls.from_dict(pred_dict=pred_dict, output_dir=tmpdirname)
+
+        datasets_og = pred_proba.datasets
+        pred_proba.restrict_datasets(datasets_og)
+        assert datasets_og == pred_proba.datasets
+
+        folds_og = pred_proba.folds
+        pred_proba.restrict_folds(folds_og)
+        assert folds_og == pred_proba.folds
+
+        models_og = pred_proba.models
+        pred_proba.restrict_models(models_og)
+        assert models_og == pred_proba.models
+
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_datasets(["unknown_dataset"])
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_folds(["unknown_fold"])
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_models(["unknown_model"])
+
+        pred_proba.restrict_datasets(["d1", "d3"])
+        assert pred_proba.datasets == ["d1", "d3"]
+
+        pred_proba.restrict_folds([1, 2])
+        assert pred_proba.folds == [1, 2]
+
+        pred_proba.restrict_models(["3", "7", "11"])
+        assert pred_proba.models == sorted(["3", "7", "11"])
+
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_datasets(datasets_og)
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_folds(folds_og)
+        with pytest.raises(AssertionError):
+            pred_proba.restrict_models(models_og)
+
+        # make sure shapes matches what is expected
+        for dataset, (val_shape, test_shape) in dataset_shapes.items():
+            for fold in folds_og:
+                for models in [
+                    ["3"],  # valid
+                    ["11", "7"],  # valid
+                    ["11", "2"],  # invalid
+                    ["2", "4"],  # invalid
+                ]:
+                    models_are_valid = False not in [m in pred_proba.models for m in models]
+                    should_raise = dataset not in pred_proba.datasets or fold not in pred_proba.folds or not models_are_valid
+                    print(dataset, fold, val_shape, test_shape, models, should_raise)
+                    if should_raise:
+                        with pytest.raises(Exception):
+                            pred_proba.predict(dataset=dataset, fold=fold, models=models, splits=["val", "test"])
+                    else:
+                        val_score, test_score = pred_proba.predict(dataset=dataset, fold=fold, models=models, splits=["val", "test"])
+                        assert val_score.shape == tuple([len(models)] + list(val_shape))
+                        assert test_score.shape == tuple([len(models)] + list(test_shape))
+                        for i, model in enumerate(models):
+                            assert np.allclose(val_score[i], generate_dummy(val_shape, models)[model])
+                            assert np.allclose(test_score[i], generate_dummy(test_shape, models)[model])

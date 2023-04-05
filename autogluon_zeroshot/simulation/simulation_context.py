@@ -117,6 +117,7 @@ class ZeroshotSimulatorContext:
 
         dataset_name_to_tid_dict = get_dataset_name_to_tid_dict(df_raw=df_raw)
         dataset_to_tid_dict = get_dataset_to_tid_dict(df_raw=df_raw)
+        assert len(unique_datasets) == len(dataset_to_tid_dict.keys())
 
         if score_against_only_automl:
             df_results_baselines = df_results_by_dataset_automl
@@ -199,11 +200,12 @@ class ZeroshotSimulatorContext:
         if lazy_format:
             # convert to lazy format if format not already available
             self.convert_lazy_format(pred_pkl_path=pred_pkl_path)
-        pred_path = str(pred_pkl_path.parent  / 'zeroshot_pred_per_task') if lazy_format else str(pred_pkl_path)
+        lazy_filename = str(pred_pkl_path).rsplit('.pkl', 1)[0]
+        pred_path = str(lazy_filename) if lazy_format else str(pred_pkl_path)
         zeroshot_pred_proba = cls.load(pred_path)
-        for k in zeroshot_pred_proba.datasets:
-            if k not in self.dataset_to_tid_dict:
-                zeroshot_pred_proba.remove_dataset(k)
+
+        valid_datasets = [d for d in zeroshot_pred_proba.datasets if d in self.dataset_to_tid_dict]
+        zeroshot_pred_proba.restrict_datasets(datasets=valid_datasets)
         # rename dataset to dataset-ids, eg. 'abalone' is mapped to 359944.0
         zeroshot_pred_proba.rename_datasets({
             k: self.dataset_to_tid_dict[k]
@@ -213,7 +215,7 @@ class ZeroshotSimulatorContext:
 
     @staticmethod
     def convert_lazy_format(pred_pkl_path, override_if_already_exists: bool = False):
-        new_filename = pred_pkl_path.parent / "zeroshot_pred_per_task"
+        new_filename = Path(str(pred_pkl_path).rsplit('.pkl', 1)[0])
         if not new_filename.exists() or override_if_already_exists:
             print(f"lazy format folder {new_filename} not found or override option set to True, "
                   f"converting to lazy format. It should take less than 3 min.")
