@@ -163,6 +163,86 @@ class TabularModelPredictions:
     def remove_dataset(self, dataset: str):
         raise NotImplementedError()
 
+    # TODO: Add is_fold_dense and get_folds_dense to check if all datasets have all folds
+    def is_dense(self) -> bool:
+        """
+        Return True if all datasets have all models
+        """
+        models_dense = self.get_models(present_in_all=True)
+        models_sparse = self.get_models(present_in_all=False)
+        return set(models_dense) == set(models_sparse)
+
+    def is_empty(self) -> bool:
+        """
+        Return True if no models or datasets exist
+        """
+        return len(self.datasets) == 0 or len(self.get_models(present_in_all=False)) == 0
+
+    def get_models(self, present_in_all=False) -> List[str]:
+        """
+        Gets all valid models
+        :param present_in_all:
+            If True, only returns models present in every dataset (dense)
+            If False, returns every model that appears in at least 1 dataset (sparse)
+        """
+        if not present_in_all:
+            return self.models
+        else:
+            return self.get_models_dense()
+
+    def get_models_dense(self) -> List[str]:
+        """
+        Returns models that appears in all lists, eg that are available for all tasks and splits
+        """
+        models = []
+        for dataset in self.datasets:
+            models_in_dataset = set(self.models_available_in_dataset(dataset=dataset))
+            models.append(models_in_dataset)
+        return list(set.intersection(*map(set, models)))
+
+    def force_to_dense(self, prune_method: str = 'dataset', assert_not_empty: bool = True):
+        """
+        Force the pred dict to contain only dense results (no missing result for any dataset/model)
+        :param prune_method:
+            If 'dataset', prunes any dataset that doesn't contain results for all models
+            If 'model', prunes any model that doesn't have results for all datasets
+        """
+        print(f'Forcing {self.__class__.__name__} to dense representation using `prune_method="{prune_method}"...')
+        pre_num_models = len(self.models)
+        pre_num_datasets = len(self.datasets)
+        if prune_method == 'dataset':
+            valid_models = self.get_models(present_in_all=False)
+            valid_datasets = self.get_datasets_with_models(models=valid_models)
+            self.restrict_datasets(datasets=valid_datasets)
+        elif prune_method == 'model':
+            valid_models = self.get_models(present_in_all=True)
+            self.restrict_models(models=valid_models)
+        post_num_models = len(self.models)
+        post_num_datasets = len(self.datasets)
+
+        print(f'\tPre : datasets={pre_num_datasets} | models={pre_num_models}')
+        print(f'\tPost: datasets={post_num_datasets} | models={post_num_models}')
+        assert self.is_dense()
+        if assert_not_empty:
+            assert not self.is_empty()
+
+    def get_datasets_with_models(self, models: List[str]) -> List[str]:
+        """
+        Get list of datasets that have results for all input models
+        """
+        datasets = self.datasets
+        configs = set(models)
+        valid_datasets = []
+        for d in datasets:
+            models_in_dataset = set(self.models_available_in_dataset(dataset=d))
+            is_valid = True
+            for m in configs:
+                if m not in models_in_dataset:
+                    is_valid = False
+            if is_valid:
+                valid_datasets.append(d)
+        return valid_datasets
+
     @property
     def datasets(self) -> List[str]:
         raise NotImplementedError()
@@ -194,6 +274,7 @@ class TabularModelPredictions:
         raise NotImplementedError()
 
 
+# FIXME: is_dense isn't correct, needs to return 126 datasets from fold 0, not 134
 class TabularPicklePredictions(TabularModelPredictions):
     def __init__(self, pred_dict: TabularPredictionsDict):
         self.pred_dict = pred_dict

@@ -11,15 +11,7 @@ def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False
 
     # keep only dataset whose folds are all present
     intersect_folds_and_datasets(zsc, zeroshot_pred_proba, zeroshot_gt)
-    models = zeroshot_pred_proba.models
-    valid_datasets = [
-        dataset
-        for dataset in zeroshot_pred_proba.datasets
-        if all(m in zeroshot_pred_proba.models_available_in_dataset(dataset) for m in models)
-    ]
-    if len(valid_datasets) < len(zeroshot_pred_proba.datasets):
-        print(f"Restrict to {len(valid_datasets)} that contains all folds (from {len(zeroshot_pred_proba.datasets)}).")
-        zeroshot_pred_proba.restrict_datasets(datasets=valid_datasets)
+    zeroshot_pred_proba.force_to_dense(prune_method='dataset')
 
     zsc.subset_models(zeroshot_pred_proba.models)
     zsc.subset_datasets(zeroshot_pred_proba.datasets)
