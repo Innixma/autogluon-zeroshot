@@ -303,14 +303,6 @@ class TabularPicklePredictions(TabularModelPredictions):
     def get_dataset(self, dataset: str) -> DatasetPredictionsDict:
         return self.pred_dict[dataset]
 
-    def get_pred(self, dataset: str) -> dict:
-        return self.pred_dict[dataset]
-
-    def verify_correctness(self, zeroshot_gt: dict):
-        for d in self.datasets:
-            pred_dict = self.pred_dict[d]
-        # TODO
-
     @property
     def models(self) -> List[str]:
         models = []
