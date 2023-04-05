@@ -274,7 +274,11 @@ class TabularModelPredictions:
         raise NotImplementedError()
 
 
-# FIXME: is_dense isn't correct, needs to return 126 datasets from fold 0, not 134
+# FIXME: force_to_dense somehow differs from prior mainline,
+#  it is returning 134 datasets from loading only fold 0 of bagged_289 instead of 126 datasets like it was prior.
+#  I wasn't able to figure out why there is a difference,
+#  and I can't identify any bugs in the 134 datasets being returned now,
+#  so maybe we were bugged earlier and were dropped 8 datasets unnecessarily?
 class TabularPicklePredictions(TabularModelPredictions):
     def __init__(self, pred_dict: TabularPredictionsDict):
         self.pred_dict = pred_dict
