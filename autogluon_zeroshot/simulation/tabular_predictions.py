@@ -70,6 +70,18 @@ class TabularModelPredictions:
             if dataset not in datasets:
                 self.remove_dataset(dataset)
 
+    def restrict_folds(self, folds: List[int]):
+        folds_cur = self.folds
+        for f in folds:
+            assert f in folds_cur, f"Trying to restrict to a fold {f} that does not exist! Valid folds: {folds_cur}."
+        return self._restrict_folds(folds=folds)
+
+    def _restrict_folds(self, folds: List[int]):
+        raise NotImplementedError()
+
+    def remove_dataset(self, dataset: str):
+        raise NotImplementedError()
+
     @property
     def datasets(self) -> List[str]:
         raise NotImplementedError()
@@ -142,7 +154,6 @@ class TabularPicklePredictions(TabularModelPredictions):
         # returns models that appears in all lists, eg that are available for all datasets, folds and splits
         return sorted(set([x for l in models for x in l]))
 
-
     def _restrict_models(self, models: List[str]):
         size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
         print(f'OLD zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
@@ -159,9 +170,25 @@ class TabularPicklePredictions(TabularModelPredictions):
         size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
         print(f'NEW zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
 
+    def _restrict_folds(self, folds: List[int]):
+        folds_cur = self.folds
+        valid_folds_set = set(folds)
+        size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
+        print(f'Restricting Folds... (Shrinking from {len(folds_cur)} -> {len(valid_folds_set)} folds)')
+        print(f'OLD zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
+        folds_to_remove = [f for f in folds_cur if f not in valid_folds_set]
+        for f in folds_to_remove:
+            self.remove_fold(f)
+        size_bytes = sys.getsizeof(pickle.dumps(self.pred_dict, protocol=4))
+        print(f'NEW zeroshot_pred_proba Size: {round(size_bytes / 1e6, 3)} MB')
+
     @property
     def datasets(self) -> List[str]:
         return list(self.pred_dict.keys())
+
+    def remove_fold(self, fold: int):
+        for t in self.pred_dict.keys():
+            self.pred_dict[t].pop(fold, None)
 
     def remove_dataset(self, dataset: str):
         self.pred_dict.pop(dataset)
