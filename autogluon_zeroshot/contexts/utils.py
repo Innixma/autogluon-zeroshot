@@ -3,6 +3,10 @@ from . import intersect_folds_and_datasets
 
 # TODO: Prune zeroshot_gt based on zeroshot_pred_proba final datasets
 def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False):
+    print(f'Loading ZS inputs:\n'
+          f'\tpred_proba:  {path_pred_proba}\n'
+          f'\tgt:          {path_gt}\n'
+          f'\tlazy_format: {lazy_format}')
     zeroshot_gt = zsc.load_groundtruth(path_gt=path_gt)
     zeroshot_pred_proba = zsc.load_pred(
         pred_pkl_path=path_pred_proba,
