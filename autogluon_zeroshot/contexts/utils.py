@@ -1,7 +1,6 @@
 from . import intersect_folds_and_datasets
 
 
-# TODO: Prune zeroshot_gt based on zeroshot_pred_proba final datasets
 def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False):
     print(f'Loading ZS inputs:\n'
           f'\tpred_proba:  {path_pred_proba}\n'
@@ -15,7 +14,7 @@ def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False
 
     # keep only dataset whose folds are all present
     intersect_folds_and_datasets(zsc, zeroshot_pred_proba, zeroshot_gt)
-    zeroshot_pred_proba.force_to_dense(prune_method='dataset')
+    zeroshot_pred_proba.force_to_dense(first_prune_method='task', second_prune_method='dataset')
 
     zsc.subset_models(zeroshot_pred_proba.models)
     zsc.subset_datasets(zeroshot_pred_proba.datasets)
