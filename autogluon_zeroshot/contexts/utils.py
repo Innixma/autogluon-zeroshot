@@ -1,4 +1,5 @@
 from . import intersect_folds_and_datasets
+from ..simulation.tabular_predictions import TabularPicklePredictions, TabularPicklePredictionsOpt
 
 
 def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False):
@@ -20,6 +21,11 @@ def load_zeroshot_input(path_pred_proba, path_gt, zsc, lazy_format: bool = False
     zsc.subset_datasets(zeroshot_pred_proba.datasets)
     zeroshot_pred_proba.restrict_models(zsc.get_configs())
     zeroshot_gt = prune_zeroshot_gt(zeroshot_pred_proba=zeroshot_pred_proba, zeroshot_gt=zeroshot_gt)
+
+    # Convert to optimized format
+    if isinstance(zeroshot_pred_proba, TabularPicklePredictions) and \
+            not isinstance(zeroshot_pred_proba, TabularPicklePredictionsOpt):
+        zeroshot_pred_proba = TabularPicklePredictionsOpt.from_dict(pred_dict=zeroshot_pred_proba.pred_dict)
 
     return zeroshot_pred_proba, zeroshot_gt, zsc
 
