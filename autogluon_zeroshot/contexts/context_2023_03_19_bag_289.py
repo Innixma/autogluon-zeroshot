@@ -36,8 +36,8 @@ def load_context_2023_03_19_bag_289(
     results_by_dataset_path = str(path_bagged_root / "608/results_ranked_by_dataset_valid.parquet")
     raw_path = str(path_bagged_root / "openml_ag_2023_03_19_zs_models.parquet")
     path_automl = str(Paths.automl_289_results_root / "results_ranked_by_dataset_valid.csv")
-    local_files_exist = [Path(f).exists() for f in [results_path, results_by_dataset_path, raw_path, path_automl]]
-    if False in local_files_exist:
+    local_files_exist = all(Path(f).exists() for f in [results_path, results_by_dataset_path, raw_path, path_automl])
+    if not local_files_exist:
         # TODO option to automatically download files in this case
         print(f"Could not find local files, using s3 files from {path_bagged_root_s3_zs_input}.")
         results_path = f"{path_bagged_root_s3_zs_input}608/results_ranked_valid.parquet"
