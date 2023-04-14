@@ -6,8 +6,20 @@ import numpy as np
 ConfigPredictionsDict = Dict[str, np.array]
 
 
+class AbstractTaskModelPredictions:
+    def get_model_predictions(self, model: str) -> np.array:
+        raise NotImplementedError
+
+    @property
+    def models(self) -> List[str]:
+        raise NotImplementedError
+
+    def subset(self, models: List[str], inplace: bool = False):
+        raise NotImplementedError
+
+
 # TODO: Currently unused, probably would be nice to use in TabularPicklePredictions
-class TaskModelPredictions:
+class TaskModelPredictions(AbstractTaskModelPredictions):
     """
     Simple unoptimized storage of all model predictions for a given task.
     Each model has its own numpy array for predictions.
@@ -47,7 +59,27 @@ class TaskModelPredictions:
         return self.config_predictions[model]
 
 
-class TaskModelPredictionsOpt:
+class TaskModelPredictionsEmpty(AbstractTaskModelPredictions):
+    """
+    Empty task with no models
+    """
+    def get_model_predictions(self, model: str) -> np.array:
+        raise AssertionError(f'Cannot get predictions from an empty task... (model="{model}")')
+
+    @property
+    def models(self) -> List[str]:
+        return []
+
+    def subset(self, models: List[str], inplace: bool = False):
+        if len(models) != 0:
+            raise AssertionError(f'Trying to subset an empty task to models: {models}')
+        if inplace:
+            return self
+        else:
+            return self.__class__()
+
+
+class TaskModelPredictionsOpt(AbstractTaskModelPredictions):
     """
     Optimized logic to store predictions for a given task for many models.
     This combines all model predictions into a single numpy array, eliminating overheads when working with Ray.
@@ -78,6 +110,8 @@ class TaskModelPredictionsOpt:
         """
         cur_models = self.models
         cur_models_set = set(cur_models)
+        if len(models) == 0:
+            return TaskModelPredictionsEmpty()
         for m in models:
             assert m in cur_models_set, f"cannot restrict {m} which is not in available models {cur_models}."
 

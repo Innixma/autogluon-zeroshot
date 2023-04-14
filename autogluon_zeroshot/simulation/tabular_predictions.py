@@ -514,13 +514,15 @@ class TabularPicklePredictions(TabularModelPredictions):
     def _restrict_models(self, models: List[str]):
         configs = set(models)
         tasks = self.tasks
-        for task in tasks:
-            task = self.get_task(dataset=task[0], fold=task[1])
+        for task_tuple in tasks:
+            task = self.get_task(dataset=task_tuple[0], fold=task_tuple[1])
             models_in_task = self.models_available_in_task(task=task)
             for m in models_in_task:
                 if m not in configs:
                     for split in task:
                         task[split].pop(m, None)
+            if not self.models_available_in_task(task=task):
+                self.remove_task(dataset=task_tuple[0], fold=task_tuple[1])
 
     def _restrict_folds(self, folds: List[int]):
         folds_cur = self.folds
@@ -556,18 +558,23 @@ class TabularPicklePredictions(TabularModelPredictions):
     def rename_datasets(self, rename_dict: dict):
         for key in rename_dict:
             assert key in self.datasets
+        num_datasets = len(self.datasets)
         self.pred_dict = {rename_dict.get(k, k): v for k, v in self.pred_dict.items()}
-
-    @property
-    def folds(self) -> List[int]:
-        first = next(iter(self.pred_dict.values()))
-        return sorted(list(first.keys()))
+        num_datasets_post = len(self.datasets)
+        if num_datasets_post != num_datasets:
+            raise AssertionError(f'Renaming caused a dataset name conflict! '
+                                 f'Started with {num_datasets} datasets, ended with {num_datasets_post} datasets... '
+                                 f'(rename_dict={rename_dict})')
 
 
 class TabularPicklePerTaskPredictions(TabularModelPredictions):
+    metadata_filename = 'metadata.pkl'
     # TODO: Consider saving/loading at the task level rather than the dataset level
-    # TODO: Consider reducing the hackiness of rename_dict_inv, need to call `.get` in multiple places, makes code dupe
-    def __init__(self, tasks_to_models: Dict[str, Dict[int, List[str]]], output_dir: str):
+    def __init__(self,
+                 tasks_to_models: Dict[str, Dict[int, List[str]]],
+                 output_dir: str,
+                 rename_dict_inv: Dict[str, str] = None,
+                 ):
         """
         Stores on pickle per task and load data in a lazy fashion which allows to reduce significantly the memory
         footprint.
@@ -575,15 +582,15 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
         :param output_dir:
         """
         self.tasks_to_models = tasks_to_models
-        self.models_removed = set()
         self.output_dir = Path(output_dir)
-        self.rename_dict_inv = {}
+        if rename_dict_inv is None:
+            rename_dict_inv = {}
+        self.rename_dict_inv = rename_dict_inv
         assert self.output_dir.is_dir()
         for f in self.folds:
             assert isinstance(f, int)
 
     def _predict(self, dataset: str, fold: int, splits: List[str] = None, models: List[str] = None) -> List[np.array]:
-        dataset = self.rename_dict_inv.get(dataset, dataset)
         pred_dict = self._load_dataset(dataset)
         models_valid = self.models_available_in_dataset(dataset)
         if models is None:
@@ -599,12 +606,11 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
             model_results = pred_dict[fold][split_key]
             return np.array([model_results[model] for model in models])
 
-        available_model_mask = np.array([i for i, model in enumerate(models) if model not in self.models_removed])
+        available_model_mask = np.array([i for i, model in enumerate(models)])
         return [get_split(split, models)[available_model_mask] for split in splits]
 
     def models_available_in_dataset(self, dataset: str, present_in_all=True) -> List[str]:
         models = []
-        dataset = self.rename_dict_inv.get(dataset, dataset)
         dataset_task_models = self.tasks_to_models[dataset]
         for fold in dataset_task_models:
             task_models = dataset_task_models[fold]
@@ -616,7 +622,6 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
             for model_set in models:
                 all_models = all_models.union(model_set)
             models = sorted(list(all_models))
-        models = [m for m in models if m not in self.models_removed]
         return models
 
     def folds_available_in_dataset(self, dataset: str) -> List[int]:
@@ -625,11 +630,11 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
         return sorted(list(dataset_fold_dict.keys()))
 
     def get_dataset(self, dataset: str) -> DatasetPredictionsDict:
-        dataset = self.rename_dict_inv.get(dataset, dataset)
         return self._load_dataset(dataset=dataset)
 
     def _load_dataset(self, dataset: str, enforce_folds: bool = True) -> DatasetPredictionsDict:
-        filename = str(self.output_dir / f'{dataset}.pkl')
+        dataset_file_name = self.rename_dict_inv.get(dataset, dataset)
+        filename = str(self.output_dir / f'{dataset_file_name}.pkl')
         out = load_pkl.load(filename)
         if enforce_folds:
             valid_folds = set(self.tasks_to_models[dataset])
@@ -650,52 +655,65 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
         for dataset in tqdm(datasets):
             filename = str(output_dir / f'{dataset}.pkl')
             save_pkl(filename, pred_dict[dataset])
-        cls._save_metadata(output_dir=output_dir, dataset_to_models=task_to_models)
+        cls._save_metadata(output_dir=output_dir, tasks_to_models=task_to_models)
         return cls(tasks_to_models=task_to_models, output_dir=output_dir)
 
     def save(self, output_dir: str):
         print(f"saving into {output_dir}")
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        self._save_metadata(output_dir, self.tasks_to_models)
         print(f"copy .pkl files from {self.output_dir} to {output_dir}")
+        # FIXME: Only copy the required files, not all files
         for file in self.output_dir.glob("*.pkl"):
             shutil.copyfile(file, output_dir / file.name)
+        self._save_metadata(output_dir=output_dir,
+                            tasks_to_models=self.tasks_to_models,
+                            rename_dict_inv=self.rename_dict_inv)
 
     @classmethod
     def load(cls, filename: str):
         filename = Path(filename)
         metadata = cls._load_metadata(filename)
-        dataset_to_models = metadata["dataset_to_models"]
+        tasks_to_models = metadata["tasks_to_models"]
+        rename_dict_inv = metadata["rename_dict_inv"]
 
         return cls(
-            tasks_to_models=dataset_to_models,
+            tasks_to_models=tasks_to_models,
             output_dir=filename,
+            rename_dict_inv=rename_dict_inv,
         )
 
     @property
     def datasets(self):
-        rename_dict_inv = {v: k for k, v in self.rename_dict_inv.items()}
-        return [rename_dict_inv.get(d, d) for d in self.tasks_to_models.keys()]
+        return list(self.tasks_to_models.keys())
 
     def _restrict_models(self, models: List[str]):
-        for model in self.models:
-            if model not in models:
-                self.models_removed.add(model)
+        models_to_keep = set(models)
+        datasets = self.datasets
+        for dataset in datasets:
+            folds = list(self.tasks_to_models[dataset].keys())
+            for fold in folds:
+                models_in_task = self.tasks_to_models[dataset][fold]
+                models_in_task = [m for m in models_in_task if m in models_to_keep]
+                if not models_in_task:
+                    self.remove_task(dataset=dataset, fold=fold)
+                else:
+                    self.tasks_to_models[dataset][fold] = models_in_task
 
     def _restrict_folds(self, folds: List[int]):
         valid_folds_set = set(folds)
-        for d in self.tasks_to_models:
-            folds_in_dataset = list(self.tasks_to_models[d].keys())
-            for f in folds_in_dataset:
-                if f not in valid_folds_set:
-                    self.tasks_to_models[d].pop(f)
+        datasets = self.datasets
+        for dataset in datasets:
+            folds_in_dataset = self.folds_available_in_dataset(dataset)
+            for fold in folds_in_dataset:
+                if fold not in valid_folds_set:
+                    self.remove_task(dataset=dataset, fold=fold)
 
     def remove_dataset(self, dataset: str):
-        self.tasks_to_models.pop(self.rename_dict_inv.get(dataset, dataset), None)
+        self.tasks_to_models.pop(dataset)
+        self.rename_dict_inv.pop(dataset, None)
 
     def remove_task(self, dataset: str, fold: int, error_if_missing=True):
-        dataset = self.rename_dict_inv.get(dataset, dataset)
         if error_if_missing:
             self.tasks_to_models[dataset].pop(fold)
         else:
@@ -706,18 +724,36 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
     def rename_datasets(self, rename_dict: dict):
         for key in rename_dict:
             assert key in self.datasets
-        self.rename_dict_inv = {v: k for k, v in rename_dict.items()}
+        num_datasets = len(self.datasets)
+        datasets = self.datasets
 
-    @staticmethod
-    def _save_metadata(output_dir, dataset_to_models):
-        metadata = {
-            "dataset_to_models": dataset_to_models,
+        for k_new, v_new in rename_dict.items():
+            if k_new not in self.rename_dict_inv:
+                self.rename_dict_inv[k_new] = k_new
+        self.rename_dict_inv = {
+            rename_dict.get(dataset, dataset): file_name for dataset, file_name in self.rename_dict_inv.items()
         }
-        save_pkl(path=str(output_dir / "metadata.pkl"), object=metadata)
+        self.tasks_to_models = {
+            rename_dict.get(dataset, dataset): self.tasks_to_models[dataset] for dataset in datasets
+        }
+        num_datasets_post = len(self.datasets)
+        if num_datasets_post != num_datasets:
+            raise AssertionError(f'Renaming caused a dataset name conflict! '
+                                 f'Started with {num_datasets} datasets, ended with {num_datasets_post} datasets... '
+                                 f'(rename_dict={rename_dict})')
 
-    @staticmethod
-    def _load_metadata(output_dir):
-        return load_pkl.load(path=str(output_dir / "metadata.pkl"))
+    @classmethod
+    def _save_metadata(cls, output_dir: Path, tasks_to_models: dict, rename_dict_inv: Dict[str, str] = None):
+        # FIXME: Cant use json because json will store keys as string, even when they were integer (for example, folds)
+        metadata = {
+            "tasks_to_models": tasks_to_models,
+            "rename_dict_inv": rename_dict_inv,
+        }
+        save_pkl(path=str(Path(output_dir) / cls.metadata_filename), object=metadata)
+
+    @classmethod
+    def _load_metadata(cls, output_dir: Path) -> dict:
+        return load_pkl.load(path=str(Path(output_dir) / cls.metadata_filename))
 
     @property
     def models(self) -> List[str]:
@@ -725,12 +761,14 @@ class TabularPicklePerTaskPredictions(TabularModelPredictions):
         for d in self.tasks_to_models.keys():
             for f in self.tasks_to_models[d].keys():
                 for model in self.tasks_to_models[d][f]:
-                    if model not in self.models_removed:
-                        res.add(model)
+                    res.add(model)
         return sorted(list(res))
 
 
+# TODO: This might not work correctly. Haven't tested it.
 class TabularNpyPerTaskPredictions(TabularModelPredictions):
+    metadata_filename = 'metadata.pkl'
+
     def __init__(self, output_dir: str, dataset_shapes: Dict[str, Tuple[int, int, int]], models, folds):
         self._output_dir = output_dir
         self._dataset_shapes = dataset_shapes
@@ -838,20 +876,18 @@ class TabularNpyPerTaskPredictions(TabularModelPredictions):
                 )
         return val_res, test_res
 
-    @staticmethod
-    def _save_metadata(output_dir, dataset_shapes, models, folds):
-        with open(output_dir / "metadata.json", "w") as f:
-            metadata = {
-                "dataset_shapes": dataset_shapes,
-                "models": models,
-                "folds": folds,
-            }
-            json.dump(metadata, f)
+    @classmethod
+    def _save_metadata(cls, output_dir, dataset_shapes, models, folds):
+        metadata = {
+            "dataset_shapes": dataset_shapes,
+            "models": models,
+            "folds": folds,
+        }
+        save_pkl(path=str(Path(output_dir) / cls.metadata_filename), object=metadata)
 
-    @staticmethod
-    def _load_metadata(output_dir):
-        with open(output_dir / "metadata.json", "r") as f:
-            return json.load(f)
+    @classmethod
+    def _load_metadata(cls, output_dir: Path) -> dict:
+        return load_pkl.load(path=str(Path(output_dir) / cls.metadata_filename))
 
     @property
     def datasets(self) -> List[str]:
@@ -940,7 +976,14 @@ class TabularPicklePredictionsOpt(TabularPicklePredictions):
             for f in available_folds:
                 available_splits = list(self.pred_dict[t][f].keys())
                 for s in available_splits:
-                    self.pred_dict[t][f][s].subset(models=models, inplace=True)
+                    self.pred_dict[t][f][s] = self.pred_dict[t][f][s].subset(models=models, inplace=True)
+                    if not self.pred_dict[t][f][s].models:
+                        # If no models, then pop the entire task and go to the next task
+                        self.pred_dict[t].pop(f)
+                        break
+            if not self.pred_dict[t]:
+                # If no folds, then pop the entire dataset
+                self.pred_dict.pop(t)
 
     def models_available_in_task(self,
                                  *,

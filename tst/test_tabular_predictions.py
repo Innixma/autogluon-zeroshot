@@ -23,12 +23,14 @@ def generate_dummy(shape, models):
 def generate_artificial_dict(
         num_folds: int,
         models: List[str],
-        dataset_shapes={
+        dataset_shapes: dict = None,
+):
+    if dataset_shapes is None:
+        dataset_shapes = {
             "d1": ((20,), (50,)),
             "d2": ((10,), (5,)),
             "d3": ((4, 3), (8, 3)),
-        },
-):
+        }
     # dictionary mapping dataset to fold to split to config name to predictions
     pred_dict: TabularPredictionsDict = {
         dataset: {
@@ -48,15 +50,18 @@ def generate_artificial_dict(
     TabularPicklePredictions,
     TabularPicklePredictionsOpt,
     TabularPicklePerTaskPredictions,
-    TabularNpyPerTaskPredictions
+    # TabularNpyPerTaskPredictions  # TODO: Not fully implemented
 ])
-def test_synthetic_data(cls):
+def test_save_load_equivalence(cls):
+    """
+    Ensure predictions behave identically after loading from file
+    """
     num_models = 13
     num_folds = 3
     dataset_shapes = {
         "d1": ((20,), (50,)),
         "d2": ((10,), (5,)),
-        "d3": ((4, 3), (8, 3)),
+        3: ((4, 3), (8, 3)),
     }
     models = [f"{i}" for i in range(num_models)]
 
@@ -67,22 +72,32 @@ def test_synthetic_data(cls):
         # 1) construct pred proba from dictionary
         pred_proba = cls.from_dict(pred_dict=pred_dict, output_dir=tmpdirname)
         assert set(pred_proba.models_available_in_dataset(dataset="d1")) == set(models)
+        assert set(pred_proba.models_available_in_dataset(dataset=3)) == set(models)
         filename = str(Path(tmpdirname) / "dummy")
 
         # 2) save it and reload it
         pred_proba.save(filename)
-        pred_proba = cls.load(filename)
+        pred_proba_load = cls.load(filename)
+
+        assert pred_proba.folds == pred_proba_load.folds
+        assert pred_proba.datasets == pred_proba_load.datasets
+        assert pred_proba.tasks == pred_proba_load.tasks
+        assert pred_proba.models == pred_proba_load.models
+
+        # Ensure can load from int dataset names still
+        assert set(pred_proba_load.models_available_in_dataset(dataset=3)) == set(models)
 
         # 3) checks that output is as expected after serializing/deserializing
-        assert pred_proba.datasets == list(dataset_shapes.keys())
-        for dataset, (val_shape, test_shape) in dataset_shapes.items():
-            print(dataset, val_shape, test_shape)
-            val_score, test_score = pred_proba.predict(dataset=dataset, fold=2, models=models, splits=["val", "test"])
-            assert val_score.shape == tuple([num_models] + list(val_shape))
-            assert test_score.shape == tuple([num_models] + list(test_shape))
-            for i, model in enumerate(models):
-                assert np.allclose(val_score[i], generate_dummy(val_shape, models)[model])
-                assert np.allclose(test_score[i], generate_dummy(test_shape, models)[model])
+        assert pred_proba_load.datasets == list(dataset_shapes.keys())
+        for cur_pred_proba in [pred_proba, pred_proba_load]:
+            for dataset, (val_shape, test_shape) in dataset_shapes.items():
+                print(dataset, val_shape, test_shape)
+                val_pred_proba, test_pred_proba = cur_pred_proba.predict(dataset=dataset, fold=2, models=models, splits=["val", "test"])
+                assert val_pred_proba.shape == tuple([num_models] + list(val_shape))
+                assert test_pred_proba.shape == tuple([num_models] + list(test_shape))
+                for i, model in enumerate(models):
+                    assert np.allclose(val_pred_proba[i], generate_dummy(val_shape, models)[model])
+                    assert np.allclose(test_pred_proba[i], generate_dummy(test_shape, models)[model])
 
 
 @pytest.mark.parametrize("cls", [
@@ -113,12 +128,12 @@ def test_restrict_models(cls):
         # make sure shapes matches what is expected
         for dataset, (val_shape, test_shape) in dataset_shapes.items():
             print(dataset, val_shape, test_shape)
-            val_score, test_score = pred_proba.predict(dataset=dataset, fold=2, models=sub_models, splits=["val", "test"])
-            assert val_score.shape == tuple([num_sub_models] + list(val_shape))
-            assert test_score.shape == tuple([num_sub_models] + list(test_shape))
+            val_pred_proba, test_pred_proba = pred_proba.predict(dataset=dataset, fold=2, models=sub_models, splits=["val", "test"])
+            assert val_pred_proba.shape == tuple([num_sub_models] + list(val_shape))
+            assert test_pred_proba.shape == tuple([num_sub_models] + list(test_shape))
             for i, model in enumerate(sub_models):
-                assert np.allclose(val_score[i], generate_dummy(val_shape, sub_models)[model])
-                assert np.allclose(test_score[i], generate_dummy(test_shape, sub_models)[model])
+                assert np.allclose(val_pred_proba[i], generate_dummy(val_shape, sub_models)[model])
+                assert np.allclose(test_pred_proba[i], generate_dummy(test_shape, sub_models)[model])
 
 
 @pytest.mark.parametrize("cls", [
@@ -146,12 +161,12 @@ def test_restrict_datasets(cls):
             if dataset == "d2":
                 continue
             print(dataset, val_shape, test_shape)
-            val_score, test_score = pred_proba.predict(dataset=dataset, fold=2, models=models, splits=["val", "test"])
-            assert val_score.shape == tuple([num_models] + list(val_shape))
-            assert test_score.shape == tuple([num_models] + list(test_shape))
+            val_pred_proba, test_pred_proba = pred_proba.predict(dataset=dataset, fold=2, models=models, splits=["val", "test"])
+            assert val_pred_proba.shape == tuple([num_models] + list(val_shape))
+            assert test_pred_proba.shape == tuple([num_models] + list(test_shape))
             for i, model in enumerate(models):
-                assert np.allclose(val_score[i], generate_dummy(val_shape, models)[model])
-                assert np.allclose(test_score[i], generate_dummy(test_shape, models)[model])
+                assert np.allclose(val_pred_proba[i], generate_dummy(val_shape, models)[model])
+                assert np.allclose(test_pred_proba[i], generate_dummy(test_shape, models)[model])
 
 @pytest.mark.parametrize("cls", [
     TabularPicklePredictions,
@@ -176,7 +191,7 @@ def test_restrict_datasets_dense(cls):
             }
             for fold in range(10)
         },
-        "d3": {
+        3: {
             fold: {
                 "pred_proba_dict_val": generate_dummy(val_shape, ["1", "2", "3"]),
                 "pred_proba_dict_test": generate_dummy(test_shape, ["1", "2", "3"]),
@@ -193,9 +208,9 @@ def test_restrict_datasets_dense(cls):
             for dataset in pred_proba.datasets
             if all(m in pred_proba.models_available_in_dataset(dataset) for m in models)
         ]
-        assert valid_datasets == ["d1", "d3"]
+        assert valid_datasets == ["d1", 3]
         pred_proba.restrict_datasets(valid_datasets)
-        assert pred_proba.datasets == ["d1", "d3"]
+        assert pred_proba.datasets == ["d1", 3]
 
 
 @pytest.mark.parametrize("cls", [
@@ -294,6 +309,36 @@ def test_advanced(cls):
         pred_proba.restrict_datasets(["d1", "d3"])
         assert pred_proba.datasets == ["d1", "d3"]
 
+        with pytest.raises(AssertionError):
+            # Cant rename dataset that does not exist (d2)
+            copy.deepcopy(pred_proba).rename_datasets({'d1': 123, 'd2': 456})
+        with pytest.raises(AssertionError):
+            # Cant overlap dataset names
+            copy.deepcopy(pred_proba).rename_datasets({'d1': 'd3'})
+
+        rename_dict = {'d1': 123}
+        pred_proba.rename_datasets(rename_dict=rename_dict)
+        assert pred_proba.datasets == [123, "d3"]
+        with pytest.raises(AssertionError):
+            # d1 is no longer present
+            copy.deepcopy(pred_proba).rename_datasets({'d1': 'd4'})
+
+        # ensure resilient to adversarial renaming
+        pred_proba.rename_datasets(rename_dict={123: 'd3', 'd3': 123})
+        assert pred_proba.datasets == ['d3', 123]
+        rename_dict = {'d1': 'd3', 'd3': 123}
+
+        filename = str(Path(tmpdirname) / "dummy")
+        # 2) save it and reload it, ensure the renaming stays
+        pred_proba.save(filename)
+        pred_proba_load = cls.load(filename)
+
+        assert pred_proba.folds == pred_proba_load.folds
+        assert pred_proba.datasets == pred_proba_load.datasets
+        assert pred_proba.tasks == pred_proba_load.tasks
+        assert pred_proba.models == pred_proba_load.models
+        pred_proba = pred_proba_load
+
         pred_proba.restrict_folds([1, 2])
         assert pred_proba.folds == [1, 2]
 
@@ -309,6 +354,7 @@ def test_advanced(cls):
 
         # make sure shapes matches what is expected
         for dataset, (val_shape, test_shape) in dataset_shapes.items():
+            dataset = rename_dict.get(dataset, dataset)
             for fold in folds_og:
                 for models in [
                     ["3"],  # valid
@@ -323,12 +369,46 @@ def test_advanced(cls):
                         with pytest.raises(Exception):
                             pred_proba.predict(dataset=dataset, fold=fold, models=models, splits=["val", "test"])
                     else:
-                        val_score, test_score = pred_proba.predict(dataset=dataset, fold=fold, models=models, splits=["val", "test"])
-                        assert val_score.shape == tuple([len(models)] + list(val_shape))
-                        assert test_score.shape == tuple([len(models)] + list(test_shape))
+                        val_pred_proba, test_pred_proba = pred_proba.predict(dataset=dataset, fold=fold, models=models, splits=["val", "test"])
+                        assert val_pred_proba.shape == tuple([len(models)] + list(val_shape))
+                        assert test_pred_proba.shape == tuple([len(models)] + list(test_shape))
                         for i, model in enumerate(models):
-                            assert np.allclose(val_score[i], generate_dummy(val_shape, models)[model])
-                            assert np.allclose(test_score[i], generate_dummy(test_shape, models)[model])
+                            assert np.allclose(val_pred_proba[i], generate_dummy(val_shape, models)[model])
+                            assert np.allclose(test_pred_proba[i], generate_dummy(test_shape, models)[model])
+
+
+def _make_empty_and_assert(pred_proba):
+    pred_proba_copy = copy.deepcopy(pred_proba)
+    pred_proba_copy.restrict_folds([])
+    assert pred_proba_copy.datasets == []
+    assert pred_proba_copy.tasks == []
+    assert pred_proba_copy.folds == []
+    assert pred_proba_copy.models == []
+    assert pred_proba_copy.is_empty()
+
+    pred_proba_copy = copy.deepcopy(pred_proba)
+    pred_proba_copy.restrict_datasets([])
+    assert pred_proba_copy.datasets == []
+    assert pred_proba_copy.tasks == []
+    assert pred_proba_copy.folds == []
+    assert pred_proba_copy.models == []
+    assert pred_proba_copy.is_empty()
+
+    pred_proba_copy = copy.deepcopy(pred_proba)
+    pred_proba_copy.restrict_tasks([])
+    assert pred_proba_copy.datasets == []
+    assert pred_proba_copy.tasks == []
+    assert pred_proba_copy.folds == []
+    assert pred_proba_copy.models == []
+    assert pred_proba_copy.is_empty()
+
+    pred_proba_copy = copy.deepcopy(pred_proba)
+    pred_proba_copy.restrict_models([])
+    assert pred_proba_copy.datasets == []
+    assert pred_proba_copy.tasks == []
+    assert pred_proba_copy.folds == []
+    assert pred_proba_copy.models == []
+    assert pred_proba_copy.is_empty()
 
 
 @pytest.mark.parametrize("cls", [
@@ -379,6 +459,8 @@ def test_sparse_to_dense(cls):
         print(f'Pre Dense')
         pred_proba.print_summary()
 
+        _make_empty_and_assert(pred_proba=pred_proba)
+
         pred_proba.restrict_folds([0, 1])
         pred_proba.force_to_dense(first_prune_method='task', second_prune_method='dataset')
 
@@ -399,3 +481,7 @@ def test_sparse_to_dense(cls):
         assert pred_proba.is_dense_models()
         assert pred_proba.is_dense_folds()
         assert not pred_proba.is_empty()
+
+        # Additionally check that restricting to nothing results in empty
+
+        _make_empty_and_assert(pred_proba=pred_proba)

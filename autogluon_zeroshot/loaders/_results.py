@@ -17,12 +17,17 @@ def load_results(
           f'\tmetadata:           {metadata}')
     df_results = load_pd.load(results)
     df_results_by_dataset = load_pd.load(results_by_dataset)
-    df_metadata = load_pd.load(metadata)
+    if metadata is not None:
+        df_metadata = load_pd.load(metadata)
+    else:
+        df_metadata = None
     df_raw = load_pd.load(raw)
     df_raw['tid'] = df_raw['tid'].astype(int)
     df_raw['tid_new'] = df_raw['tid'].astype(str) + '_' + df_raw['fold'].astype(str)
 
     if require_tid_in_metadata:
+        if df_metadata is None:
+            raise AssertionError('`metadata` must not be None if `require_tid_in_metadata=True`')
         valid_tids = set(list(df_metadata['tid'].unique()))
         init_tid_count = len(df_raw['tid'].unique())
         df_raw = df_raw[df_raw['tid'].isin(valid_tids)]
