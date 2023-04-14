@@ -1,7 +1,7 @@
 
 from autogluon.common.savers import save_pd
 
-from autogluon_zeroshot.contexts.context_2022_10_13 import load_context_2022_10_13
+from autogluon_zeroshot.contexts.context_fetcher import get_context
 from autogluon_zeroshot.simulation.sim_output import SimulationOutputGenerator
 
 
@@ -13,8 +13,10 @@ if __name__ == '__main__':
     This script takes as input a list of configs to generate the output without cross-validation.
     """
 
+    context_name = 'D104_F10_C608_FULL'
+    benchmark_context = get_context(context_name)
     name = 'EnsembleAllHPO'
-    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = load_context_2022_10_13(load_zeroshot_pred_proba=True)
+    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_zpp=True)
     zsc.print_info()
 
     configs = zsc.get_configs()

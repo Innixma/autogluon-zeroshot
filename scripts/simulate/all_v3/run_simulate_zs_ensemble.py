@@ -1,5 +1,3 @@
-import pickle
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,15 +5,17 @@ import numpy as np
 from autogluon.common.savers import save_pkl
 
 from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import EnsembleSelectionConfigScorer
-from autogluon_zeroshot.contexts.context_2022_10_13 import load_context_2022_10_13, get_configs_default, \
-    get_configs_small
+from autogluon_zeroshot.contexts.context_2022_10_13 import get_configs_small
 from autogluon_zeroshot.simulation.sim_runner import run_zs_simulation
+from autogluon_zeroshot.contexts.context_fetcher import get_context
 from autogluon_zeroshot.portfolio import PortfolioCV
 
 
 if __name__ == '__main__':
-    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = load_context_2022_10_13(
-        load_zeroshot_pred_proba=True,
+    context_name = 'D104_F10_C608_FULL'
+    benchmark_context = get_context(context_name)
+    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(
+        load_zpp=True,
         lazy_format=False,
     )
     zsc.subset_models(zeroshot_pred_proba.models)
