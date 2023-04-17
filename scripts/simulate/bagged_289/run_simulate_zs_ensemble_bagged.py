@@ -14,7 +14,7 @@ from autogluon_zeroshot.utils import catchtime
 
 if __name__ == '__main__':
     # context_name = 'BAG_D244_F10_C608_FULL'
-    context_name = 'BAG_D289_F10_C608_FULL'
+    context_name = 'BAG_D279_F10_C608_FULL'
     benchmark_context = get_context(context_name)
     with catchtime("load"):
         zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(
