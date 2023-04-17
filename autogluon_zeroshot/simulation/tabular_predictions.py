@@ -52,7 +52,7 @@ class TabularModelPredictions:
         for split in splits:
             assert split in self.splits
         assert models is None or len(models) > 0
-        return self._predict(dataset, fold, splits, models)
+        return self._predict(dataset=dataset, fold=fold, splits=splits, models=models)
 
     def predict_dataset(self, dataset: str) -> DatasetPredictionsDict:
         """
@@ -61,6 +61,9 @@ class TabularModelPredictions:
         raise NotImplementedError()
 
     def predict_task(self, dataset: str, fold: int) -> TaskPredictionsDict:
+        """
+        :return: all the predictions associated to a task
+        """
         return self.predict_dataset(dataset=dataset)[fold]
 
     @property
@@ -82,7 +85,7 @@ class TabularModelPredictions:
     def models(self) -> List[str]:
         return self.list_models_available(present_in_all=False)
 
-    def list_folds_available(self, datasets: List[str], present_in_all: bool = True) -> List[int]:
+    def list_folds_available(self, datasets: List[str] = None, present_in_all: bool = True) -> List[int]:
         """
         :return: the list of folds available in the datasets provided, if no dataset is given consider the list of
         all available datasets. Return the folds present in all datasets if `present_in_all` and otherwise the ones
