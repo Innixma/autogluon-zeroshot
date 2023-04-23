@@ -2,13 +2,13 @@ from .context import BenchmarkContext
 from ..loaders import Paths
 
 
-s3_download_map = {
+_s3_download_map = {
     'results/bagged/zeroshot_gt_2022_12_11_zs.pkl': 's3://automl-benchmark-ag/aggregated/ec2/2022_12_11_zs/zeroshot_gt_2022_12_11_zs.pkl',
     'results/bagged/zeroshot_gt_2022_12_11_zs_mini.pkl': 's3://automl-benchmark-ag/aggregated/ec2/2022_12_11_zs/zeroshot_gt_2022_12_11_zs_mini.pkl',
     'results/bagged/zeroshot_pred_proba_2022_12_11_zs.pkl': 's3://automl-benchmark-ag/aggregated/ec2/2022_12_11_zs/zeroshot_pred_proba_2022_12_11_zs.pkl',
     'results/bagged/zeroshot_pred_proba_2022_12_11_zs_mini.pkl': 's3://automl-benchmark-ag/aggregated/ec2/2022_12_11_zs/zeroshot_pred_proba_2022_12_11_zs_mini.pkl'
 }
-s3_download_map = {Paths.rel_to_abs(k, relative_to=Paths.data_root): v for k, v in s3_download_map.items()}
+_s3_download_map = {Paths.rel_to_abs(k, relative_to=Paths.data_root): v for k, v in _s3_download_map.items()}
 
 
 _path_bagged_root = Paths.bagged_results_root
@@ -48,7 +48,7 @@ context_bag_104_bench: BenchmarkContext = BenchmarkContext.from_paths(
     description='Bagged results from 104 datasets (non-trivial), 10-fold CV, 608 configs.',
     date='2022_12_11',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_all_result_paths,
     **_bag_zs_path_all,
     **_task_metadata_104_path,
@@ -59,7 +59,7 @@ context_bag_104_bench_small: BenchmarkContext = BenchmarkContext.from_paths(
     description='Bagged results from 104 datasets (non-trivial), 10-fold CV, 158 configs.',
     date='2022_12_11',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_small_30_result_paths,
     **_bag_zs_path_small_30,
     **_task_metadata_104_path,

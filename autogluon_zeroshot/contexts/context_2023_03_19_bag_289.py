@@ -2,7 +2,7 @@ from .context import BenchmarkContext
 from ..loaders import Paths
 
 
-s3_download_map = {
+_s3_download_map = {
     "results/bagged_289/608/results_ranked_by_dataset_valid.csv": "s3://automl-benchmark-ag/aggregated/ec2/2023_03_19_zs/zs_input/bagged_289/608/results_ranked_by_dataset_valid.csv",
     "results/bagged_289/608/results_ranked_by_dataset_valid.parquet": "s3://automl-benchmark-ag/aggregated/ec2/2023_03_19_zs/zs_input/bagged_289/608/results_ranked_by_dataset_valid.parquet",
     "results/bagged_289/608/results_ranked_valid.csv": "s3://automl-benchmark-ag/aggregated/ec2/2023_03_19_zs/zs_input/bagged_289/608/results_ranked_valid.csv",
@@ -18,7 +18,7 @@ s3_download_map = {
     "results/bagged_289/zeroshot_gt_50_mb.pkl": "s3://automl-benchmark-ag/aggregated/ec2/2023_03_19_zs/zeroshot_gt_50_mb.pkl",
     "results/bagged_289/zeroshot_pred_proba_50_mb.pkl": "s3://automl-benchmark-ag/aggregated/ec2/2023_03_19_zs/zeroshot_pred_proba_50_mb.pkl",
 }
-s3_download_map = {Paths.rel_to_abs(k, relative_to=Paths.data_root): v for k, v in s3_download_map.items()}
+_s3_download_map = {Paths.rel_to_abs(k, relative_to=Paths.data_root): v for k, v in _s3_download_map.items()}
 
 
 _path_bagged_root = Paths.bagged_289_results_root
@@ -54,7 +54,7 @@ context_bag_244_bench_50_mb: BenchmarkContext = BenchmarkContext.from_paths(
                 '(130 dense result datasets w/ ZPP, 137 w/o)',
     date='2023_03_19',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_289_result_paths,
     **_bag_289_zs_50_mb_path,
     **_task_metadata_244_path,
@@ -66,7 +66,7 @@ context_bag_244_bench_10_mb: BenchmarkContext = BenchmarkContext.from_paths(
                 '(105 dense result datasets w/ ZPP, 137 w/o)',
     date='2023_03_19',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_289_result_paths,
     **_bag_289_zs_10_mb_path,
     **_task_metadata_244_path,
@@ -78,7 +78,7 @@ context_bag_289_bench_50_mb: BenchmarkContext = BenchmarkContext.from_paths(
                 'Bagged results from 279 datasets (includes trivial datasets), 10-fold CV, 608 configs. ',
     date='2023_03_19',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_289_result_paths,
     **_bag_289_zs_50_mb_path,
     **_task_metadata_289_path,
@@ -90,7 +90,7 @@ context_bag_289_bench_10_mb: BenchmarkContext = BenchmarkContext.from_paths(
                 'Bagged results from 279 datasets (includes trivial datasets), 10-fold CV, 608 configs. ',
     date='2023_03_19',
     folds=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-    s3_download_map=s3_download_map,
+    s3_download_map=_s3_download_map,
     **_bag_289_result_paths,
     **_bag_289_zs_10_mb_path,
     **_task_metadata_289_path,

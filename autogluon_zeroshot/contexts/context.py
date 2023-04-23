@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 from pathlib import Path
 
@@ -16,27 +17,19 @@ from ..simulation.tabular_predictions import TabularModelPredictions
 from ..utils import catchtime
 
 
-# TODO: Add logic to download files if they don't exist
+@dataclass
 class BenchmarkPaths:
-    def __init__(self,
-                 result: str,
-                 results_by_dataset: str,
-                 raw: str,
-                 comparison: str,
-                 task_metadata: str = None,
-                 zs_pp: str = None,
-                 zs_gt: str = None,
-                 configs: List[str] = None,
-                 ):
-        self.result = result
-        self.results_by_dataset = results_by_dataset
-        self.raw = raw
-        self.comparison = comparison
-        self.task_metadata = task_metadata
-        self.zs_pp = zs_pp
-        self.zs_gt = zs_gt
+    result: str
+    results_by_dataset: str
+    raw: str
+    comparison: str
+    task_metadata: str = None
+    zs_pp: str = None
+    zs_gt: str = None
+    configs: List[str] = None
 
-        if configs is None:
+    def __post_init__(self):
+        if self.configs is None:
             configs_prefix_1 = Paths.data_root / 'configs' / 'configs_20221004'
             configs_prefix_2 = Paths.data_root / 'configs'
             configs = [
@@ -49,7 +42,7 @@ class BenchmarkPaths:
                 f'{configs_prefix_2}/configs_xt.json',
                 f'{configs_prefix_2}/configs_knn.json',
             ]
-        self.configs = configs
+            self.configs = configs
 
     def print_summary(self):
         print(f'BenchmarkPaths Summary:\n'
@@ -153,9 +146,9 @@ class BenchmarkPaths:
     def load_comparison(self) -> pd.DataFrame:
         return load_pd.load(self.comparison)
 
-    def load_zpp(self,
-                 zsc: ZeroshotSimulatorContext,
-                 lazy_format: bool = False) -> Tuple[TabularModelPredictions, dict, ZeroshotSimulatorContext]:
+    def load_predictions(self,
+                         zsc: ZeroshotSimulatorContext,
+                         lazy_format: bool = False) -> Tuple[TabularModelPredictions, dict, ZeroshotSimulatorContext]:
         self._assert_exists(self.zs_pp, name='zs_pp')
         self._assert_exists(self.zs_gt, name='zs_gt')
         zeroshot_pred_proba, zeroshot_gt, zsc = load_zeroshot_input(
@@ -203,11 +196,29 @@ class BenchmarkContext:
                    s3_download_map=s3_download_map,
                    benchmark_paths=BenchmarkPaths(**paths))
 
-    def download(self, include_zs: bool = True, exists: str = 'raise', dry_run: bool = False):
+    def download(self,
+                 include_zs: bool = True,
+                 exists: str = 'raise',
+                 dry_run: bool = False):
+        """
+        Downloads all BenchmarkContext required files from s3 to local disk.
+
+        :param include_zs: If True, downloads zpp and gt files if they exist.
+        :param exists: This determines the behavior of the file download.
+            Options: ['ignore', 'raise', 'overwrite']
+            If 'ignore': Will only download missing files and ignore files that already exist locally.
+                Note: Does not guarantee local and remote files are identical.
+            If 'raise': Will raise an exception if any local files exist. Otherwise, it will download all remote files.
+                Guarantees alignment between local and remote files (at the time of download)
+            If 'overwrite': Will download all remote files, overwriting any pre-existing local files.
+                Guarantees alignment between local and remote files (at the time of download)
+        :param dry_run: If True, will not download files, but instead log what would have been downloaded.
+        """
         print(f'Downloading files for {self.name} context... '
               f'(include_zs={include_zs}, exists="{exists}", dry_run={dry_run})')
         if dry_run:
             print(f'\tNOTE: `dry_run=True`! Files will not be downloaded.')
+        assert exists in ["raise", "ignore", "overwrite"]
         assert self.s3_download_map is not None, \
             f'self.s3_download_map is None: download functionality is disabled'
         file_paths_expected = self.benchmark_paths.get_file_paths(include_zs=include_zs)
@@ -323,7 +334,7 @@ class BenchmarkContext:
             configs_full = self._load_configs()
 
             if load_zpp:
-                zeroshot_pred_proba, zeroshot_gt, zsc = self._load_zpp(zsc=zsc, lazy_format=lazy_format)
+                zeroshot_pred_proba, zeroshot_gt, zsc = self._load_predictions(zsc=zsc, lazy_format=lazy_format)
             else:
                 zeroshot_pred_proba = None
                 zeroshot_gt = None
@@ -335,11 +346,13 @@ class BenchmarkContext:
         df_results_by_dataset = combine_results_with_score_val(df_raw, df_results_by_dataset)
         return df_results_by_dataset, df_raw, df_metadata
 
-    def _load_configs(self):
+    def _load_configs(self) -> dict:
         return self.benchmark_paths.load_configs()
 
-    def _load_zpp(self, zsc: ZeroshotSimulatorContext, lazy_format: bool = False):
-        return self.benchmark_paths.load_zpp(zsc=zsc, lazy_format=lazy_format)
+    def _load_predictions(self,
+                          zsc: ZeroshotSimulatorContext,
+                          lazy_format: bool = False) -> Tuple[TabularModelPredictions, dict, ZeroshotSimulatorContext]:
+        return self.benchmark_paths.load_predictions(zsc=zsc, lazy_format=lazy_format)
 
     def _load_zsc(self, folds: List[int]) -> ZeroshotSimulatorContext:
         df_results_by_dataset, df_raw, df_metadata = self._load_results()
