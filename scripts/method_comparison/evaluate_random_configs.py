@@ -89,7 +89,7 @@ if __name__ == "__main__":
     benchmark_context = get_context(context_name)
 
     with catchtime("load"):
-        zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_zpp=False)
+        zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_predictions=False)
     configs = zsc.get_configs()
     datasets = np.array(zsc.get_datasets())
 

@@ -18,7 +18,7 @@ if __name__ == '__main__':
     benchmark_context = get_context(context_name)
     with catchtime("load"):
         zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(
-            load_zpp=True,
+            load_predictions=True,
             lazy_format=False,
             # folds=[0],
         )

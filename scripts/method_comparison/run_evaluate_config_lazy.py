@@ -13,7 +13,7 @@ if __name__ == '__main__':
 
     with catchtime("eval"):
         with catchtime("load"):
-            zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_zpp=False)
+            zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_predictions=False)
         configs = zsc.get_configs()
         datasets = zsc.get_dataset_folds()
 

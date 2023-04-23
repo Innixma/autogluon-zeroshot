@@ -277,7 +277,7 @@ class BenchmarkContext:
 
     def load(self,
              folds: List[int] = None,
-             load_zpp: bool = False,
+             load_predictions: bool = False,
              lazy_format: bool = False,
              download_files: bool = False,
              exists: str = 'ignore') -> Tuple[ZeroshotSimulatorContext, dict, TabularModelPredictions, dict]:
@@ -285,9 +285,9 @@ class BenchmarkContext:
         :param folds: If None, uses self.folds as default.
             If specified, must be a subset of `self.folds`. This will filter the results to only the specified folds.
             Restricting folds can be useful to speed up experiments.
-        :param load_zpp: If True, loads zpp and gt files.
+        :param load_predictions: If True, loads zpp and gt files.
         :param lazy_format: If True, returns model predictions in lazy format, else returns them in memory.
-            Ignored if load_zpp=False
+            Ignored if load_predictions=False
         :param download_files: If True, will download required files from s3 if they don't already exist locally.
         :param exists: If download_files=True, this determines the behavior of the file download.
             Options: ['ignore', 'raise', 'overwrite']
@@ -302,12 +302,12 @@ class BenchmarkContext:
             zeroshot_pred_proba: TabularModelPredictions
                 # TODO: Consider making a part of zsc.
                 The prediction probabilities of all configs for all tasks.
-                Will be None if `load_zpp=False`.
+                Will be None if `load_predictions=False`.
             zeroshot_gt : dict
                 # TODO: Make its own object instead of a raw dict.
                 # TODO: Consider making a part of zsc or zeroshot_pred_proba
                 The target ground truth for both validation and test samples for all tasks.
-                Will be None if `load_zpp=False`.
+                Will be None if `load_predictions=False`.
         """
         if folds is None:
             folds = self.folds
@@ -322,18 +322,18 @@ class BenchmarkContext:
                   f'\tfolds: {folds}')
             self.benchmark_paths.print_summary()
             if download_files and exists == 'ignore':
-                if self.benchmark_paths.exists_all(check_zs=load_zpp):
+                if self.benchmark_paths.exists_all(check_zs=load_predictions):
                     print(f'All required files are present...')
                     download_files = False
             if download_files:
                 print(f'Downloading input files from s3...')
-                self.download(include_zs=load_zpp, exists=exists)
-            self.benchmark_paths.assert_exists_all(check_zs=load_zpp)
+                self.download(include_zs=load_predictions, exists=exists)
+            self.benchmark_paths.assert_exists_all(check_zs=load_predictions)
 
             zsc = self._load_zsc(folds=folds)
             configs_full = self._load_configs()
 
-            if load_zpp:
+            if load_predictions:
                 zeroshot_pred_proba, zeroshot_gt, zsc = self._load_predictions(zsc=zsc, lazy_format=lazy_format)
             else:
                 zeroshot_pred_proba = None

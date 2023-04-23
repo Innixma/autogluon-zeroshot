@@ -47,7 +47,7 @@ def evaluate_ensemble(
         context_name = 'D104_F10_C608_FULL'
     benchmark_context = get_context(context_name)
     zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(
-        load_zpp=True, lazy_format=True,
+        load_predictions=True, lazy_format=True,
     )
     if n_splits is not None:
         datasets = np.array(train_datasets)

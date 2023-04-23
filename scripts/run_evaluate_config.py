@@ -7,7 +7,7 @@ if __name__ == '__main__':
     context_name = 'D104_F10_C608_FULL'
     benchmark_context = get_context(context_name)
     with catchtime("eval config"):
-        zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_zpp=True)
+        zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_predictions=True)
         zsc.print_info()
 
         # NOTE: For speed of simulation, it is recommended backend='ray'

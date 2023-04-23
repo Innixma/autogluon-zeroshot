@@ -72,7 +72,7 @@ def compute_zeroshot(
         context_name = 'D104_F10_C608_FULL'
     benchmark_context = get_context(context_name)
 
-    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_zpp=True, lazy_format=True)
+    zsc, configs_full, zeroshot_pred_proba, zeroshot_gt = benchmark_context.load(load_predictions=True, lazy_format=True)
     if ensemble_score:
         config_scorer = EnsembleSelectionConfigScorer.from_zsc(
             zeroshot_simulator_context=zsc,
