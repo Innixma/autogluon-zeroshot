@@ -1,5 +1,4 @@
-import time
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from pathlib import Path
 
 import boto3
@@ -13,6 +12,8 @@ from autogluon.common.utils.s3_utils import is_s3_url, s3_path_to_bucket_prefix
 from .utils import load_zeroshot_input
 from ..loaders import load_configs, load_results, combine_results_with_score_val, Paths
 from ..simulation.simulation_context import ZeroshotSimulatorContext
+from ..simulation.tabular_predictions import TabularModelPredictions
+from ..utils import catchtime
 
 
 # TODO: Add logic to download files if they don't exist
@@ -36,8 +37,8 @@ class BenchmarkPaths:
         self.zs_gt = zs_gt
 
         if configs is None:
-            configs_prefix_1 = str(Paths.data_root / 'configs/configs_20221004')
-            configs_prefix_2 = str(Paths.data_root / 'configs')
+            configs_prefix_1 = Paths.data_root / 'configs' / 'configs_20221004'
+            configs_prefix_2 = Paths.data_root / 'configs'
             configs = [
                 f'{configs_prefix_1}/configs_catboost.json',
                 f'{configs_prefix_1}/configs_fastai.json',
@@ -139,7 +140,7 @@ class BenchmarkPaths:
                 return False
         return True
 
-    def load_results(self) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    def load_results(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         df_results, df_results_by_dataset, df_raw, df_metadata = load_results(
             results=self.result,
             results_by_dataset=self.results_by_dataset,
@@ -152,7 +153,9 @@ class BenchmarkPaths:
     def load_comparison(self) -> pd.DataFrame:
         return load_pd.load(self.comparison)
 
-    def load_zpp(self, zsc, lazy_format=False):
+    def load_zpp(self,
+                 zsc: ZeroshotSimulatorContext,
+                 lazy_format: bool = False) -> Tuple[TabularModelPredictions, dict, ZeroshotSimulatorContext]:
         self._assert_exists(self.zs_pp, name='zs_pp')
         self._assert_exists(self.zs_gt, name='zs_gt')
         zeroshot_pred_proba, zeroshot_gt, zsc = load_zeroshot_input(
@@ -163,7 +166,7 @@ class BenchmarkPaths:
         )
         return zeroshot_pred_proba, zeroshot_gt, zsc
 
-    def load_configs(self):
+    def load_configs(self) -> dict:
         return load_configs(self.configs)
 
 
@@ -266,43 +269,68 @@ class BenchmarkContext:
              load_zpp: bool = False,
              lazy_format: bool = False,
              download_files: bool = False,
-             download_exists: str = 'ignore'):
+             exists: str = 'ignore') -> Tuple[ZeroshotSimulatorContext, dict, TabularModelPredictions, dict]:
+        """
+        :param folds: If None, uses self.folds as default.
+            If specified, must be a subset of `self.folds`. This will filter the results to only the specified folds.
+            Restricting folds can be useful to speed up experiments.
+        :param load_zpp: If True, loads zpp and gt files.
+        :param lazy_format: If True, returns model predictions in lazy format, else returns them in memory.
+            Ignored if load_zpp=False
+        :param download_files: If True, will download required files from s3 if they don't already exist locally.
+        :param exists: If download_files=True, this determines the behavior of the file download.
+            Options: ['ignore', 'raise', 'overwrite']
+            Refer to `self.download` for details.
+        :return: Returns four objects in the following order:
+            zsc: ZeroshotSimulatorContext
+                The zeroshot simulator context object.
+            configs: dict
+                # TODO: Consider making a part of zsc.
+                The dictionary of config names to hyperparameters.
+                This is useful when wanting to understand what hyperparameters a particular model config is using.
+            zeroshot_pred_proba: TabularModelPredictions
+                # TODO: Consider making a part of zsc.
+                The prediction probabilities of all configs for all tasks.
+                Will be None if `load_zpp=False`.
+            zeroshot_gt : dict
+                # TODO: Make its own object instead of a raw dict.
+                # TODO: Consider making a part of zsc or zeroshot_pred_proba
+                The target ground truth for both validation and test samples for all tasks.
+                Will be None if `load_zpp=False`.
+        """
         if folds is None:
             folds = self.folds
         for f in folds:
             assert f in self.folds, f'Fold {f} does not exist in available folds! self.folds={self.folds}'
 
-        time_start = time.time()
-        print(f'Loading BenchmarkContext:\n'
-              f'\tname: {self.name}\n'
-              f'\tdescription: {self.description}\n'
-              f'\tdate: {self.date}\n'
-              f'\tfolds: {folds}')
-        self.benchmark_paths.print_summary()
-        if download_files and download_exists == 'ignore':
-            if self.benchmark_paths.exists_all(check_zs=load_zpp):
-                print(f'All required files are present...')
-                download_files = False
-        if download_files:
-            print(f'Downloading input files from s3...')
-            self.download(include_zs=load_zpp, exists=download_exists)
-        self.benchmark_paths.assert_exists_all(check_zs=load_zpp)
+        with catchtime("Loading ZS Context"):
+            print(f'Loading BenchmarkContext:\n'
+                  f'\tname: {self.name}\n'
+                  f'\tdescription: {self.description}\n'
+                  f'\tdate: {self.date}\n'
+                  f'\tfolds: {folds}')
+            self.benchmark_paths.print_summary()
+            if download_files and exists == 'ignore':
+                if self.benchmark_paths.exists_all(check_zs=load_zpp):
+                    print(f'All required files are present...')
+                    download_files = False
+            if download_files:
+                print(f'Downloading input files from s3...')
+                self.download(include_zs=load_zpp, exists=exists)
+            self.benchmark_paths.assert_exists_all(check_zs=load_zpp)
 
-        zsc = self._load_zsc(folds=folds)
-        configs_full = self._load_configs()
+            zsc = self._load_zsc(folds=folds)
+            configs_full = self._load_configs()
 
-        if load_zpp:
-            zeroshot_pred_proba, zeroshot_gt, zsc = self._load_zpp(zsc=zsc, lazy_format=lazy_format)
-        else:
-            zeroshot_pred_proba = None
-            zeroshot_gt = None
-
-        time_end = time.time()
-        print(f'Loaded ZS Context in {time_end - time_start:.2f}s')
+            if load_zpp:
+                zeroshot_pred_proba, zeroshot_gt, zsc = self._load_zpp(zsc=zsc, lazy_format=lazy_format)
+            else:
+                zeroshot_pred_proba = None
+                zeroshot_gt = None
 
         return zsc, configs_full, zeroshot_pred_proba, zeroshot_gt
 
-    def _load_results(self) -> (pd.DataFrame, pd.DataFrame, pd.DataFrame):
+    def _load_results(self) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         df_results, df_results_by_dataset, df_raw, df_metadata = self.benchmark_paths.load_results()
         df_results_by_dataset = combine_results_with_score_val(df_raw, df_results_by_dataset)
         return df_results_by_dataset, df_raw, df_metadata
