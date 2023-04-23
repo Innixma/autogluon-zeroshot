@@ -3,7 +3,7 @@ from pathlib import Path
 from autogluon.common.loaders import load_pkl
 from autogluon.common.savers import save_pd
 
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.simulation.sim_output import SimulationOutputGenerator
 
 

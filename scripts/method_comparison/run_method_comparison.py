@@ -45,7 +45,7 @@ from syne_tune import Tuner, StoppingCriterion
 from syne_tune.backend import LocalBackend
 from syne_tune.experiments import load_experiment
 
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.loaders import Paths
 from autogluon_zeroshot.simulation.config_generator import ZeroshotConfigGenerator
 from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import EnsembleSelectionConfigScorer

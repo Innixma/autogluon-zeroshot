@@ -1,7 +1,7 @@
 from typing import List
 import seaborn as sns
 
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.simulation.simulation_context import ZeroshotSimulatorContext
 
 

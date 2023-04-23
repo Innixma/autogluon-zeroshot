@@ -12,7 +12,7 @@ import pandas as pd
 from sklearn.model_selection import KFold
 from tqdm import tqdm
 
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.loaders import Paths
 from autogluon_zeroshot.utils import catchtime
 from scripts.method_comparison.evaluate_ensemble import evaluate_ensemble

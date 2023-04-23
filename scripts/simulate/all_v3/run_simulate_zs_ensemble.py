@@ -1,13 +1,11 @@
 from pathlib import Path
 
-import numpy as np
-
 from autogluon.common.savers import save_pkl
 
 from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import EnsembleSelectionConfigScorer
 from autogluon_zeroshot.contexts.context_2022_10_13 import get_configs_small
 from autogluon_zeroshot.simulation.sim_runner import run_zs_simulation
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.portfolio import PortfolioCV
 
 

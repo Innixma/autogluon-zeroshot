@@ -1,5 +1,5 @@
 from autogluon_zeroshot.simulation.single_best_config_scorer import SingleBestConfigScorer
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.simulation.sim_runner import run_zs_simulation_debug
 
 

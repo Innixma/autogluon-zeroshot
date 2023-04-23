@@ -12,7 +12,7 @@ import numpy as np
 from sklearn.model_selection import KFold
 from syne_tune import Reporter
 
-from autogluon_zeroshot.contexts.context_fetcher import get_context
+from autogluon_zeroshot.contexts import get_context
 from autogluon_zeroshot.simulation.ensemble_selection_config_scorer import EnsembleSelectionConfigScorer
 from autogluon_zeroshot.utils import catchtime
 
