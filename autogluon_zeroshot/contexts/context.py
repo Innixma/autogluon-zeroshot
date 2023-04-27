@@ -45,15 +45,9 @@ class BenchmarkPaths:
             self.configs = configs
 
     def print_summary(self):
-        print(f'BenchmarkPaths Summary:\n'
-              f'\tresult             = {self.result}\n'
-              f'\tresults_by_dataset = {self.results_by_dataset}\n'
-              f'\traw                = {self.raw}\n'
-              f'\tcomparison         = {self.comparison}\n'
-              f'\ttask_metadata      = {self.task_metadata}\n'
-              f'\tzs_pp              = {self.zs_pp}\n'
-              f'\tzs_gt              = {self.zs_gt}\n'
-              f'\tconfigs            = {self.configs}')
+        max_str_len = max(len(key) for key in self.__dict__.keys())
+        print(f'BenchmarkPaths Summary:')
+        print("\n".join(f'\t{key + " "*(max_str_len - len(key))} = {value}' for key, value in self.__dict__.items()))
 
     def get_file_paths(self, include_zs: bool = True) -> List[str]:
         file_paths = [
@@ -111,10 +105,7 @@ class BenchmarkPaths:
 
     def exists_all(self, check_zs: bool = True) -> bool:
         required_files = self.get_file_paths(include_zs=check_zs)
-        for f in required_files:
-            if not self.exists(f):
-                return False
-        return True
+        return all(self.exists(f) for f in required_files)
 
     @staticmethod
     def exists(filepath: str) -> bool:

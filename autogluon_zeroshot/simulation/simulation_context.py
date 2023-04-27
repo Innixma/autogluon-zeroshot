@@ -162,7 +162,7 @@ class ZeroshotSimulatorContext:
 
     def get_dataset_folds(self,
                           datasets: Optional[List[str]] = None,
-                          problem_type: Optional[List[str]] = None) -> List[str]:
+                          problem_type: Optional[Union[str, List[str]]] = None) -> List[str]:
         """
         :param datasets: a list of dataset parent names, only return folds that have a parent in this list
         :param problem_type: a problem type from AutoGluon in "multiclass", "binary", ... or list of problem types
