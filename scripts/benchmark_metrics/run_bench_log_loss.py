@@ -6,7 +6,7 @@ import numpy as np
 from autogluon.core.metrics import log_loss
 from sklearn.metrics import log_loss as sk_log_loss
 from autogluon_zeroshot.metrics._fast_log_loss import \
-    fast_log_loss_end_to_end, fast_log_loss, convert_multi_to_binary_fast_log_loss
+    fast_log_loss_end_to_end, fast_log_loss, extract_true_class_prob
 from sklearn.preprocessing import normalize
 
 
@@ -81,11 +81,11 @@ def benchmark_log_loss(num_samples: int, num_classes: int, num_repeats: int):
 
     # The time this takes can be ignored, as for our purposes this is only paid once,
     # but y_true_opt and y_pred_opt are re-used in many log_loss calls.
-    y_true_opt, y_pred_opt = convert_multi_to_binary_fast_log_loss(y_true=y_true, y_pred=y_pred)
+    y_pred_opt = extract_true_class_prob(y_true=y_true, y_pred=y_pred)
 
     time_average_s, score = get_eval_speed(
         eval_metric=fast_log_loss.error,
-        y_true=y_true_opt,
+        y_true=y_true,
         y_pred=y_pred_opt,
         num_repeats=num_repeats,
     )

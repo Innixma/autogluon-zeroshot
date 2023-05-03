@@ -1,75 +1,55 @@
-from typing import Tuple, Optional
-
 import numpy as np
 
 from autogluon.core.metrics import make_scorer
 
 
-def convert_multi_to_binary_fast_log_loss(y_true: np.ndarray, y_pred: np.ndarray) -> Tuple[None, np.ndarray]:
+def extract_true_class_prob(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
     """
-    Converts standard multiclass classification prediction probabilities into a proxy binary format
-    to accelerate log_loss computation.
-
-    The output can be passed into `_fast_log_loss`.
-
     Note: Data must be pre-normalized. The data is not normalized within this function for speed purposes.
+    The predictions can then be passed to _fast_log_loss.
+    :param y_true: an array with shape (n_samples,) that contains all the classes, values must be in [0, n_class[
+    :param y_pred: an array with shape (n_samples, n_class) whose values are the prediction probability assigned to the
+    ground truth class
+    :return: an array with shape (n_samples) that contains the predicted probability of the true class for each sample
     """
-    ndim = y_pred.ndim
-    if ndim == 1:
-        raise AssertionError(f'Binary classification not yet implemented for fast_log_loss (it is possible to add)')
-    elif ndim == 2:
-        y_pred = y_pred[range(y_pred.shape[0]), y_true]
-    elif ndim == 3:
-        """Convert multiple model's prediction probabilities at once when stacked in a 3-dimensional numpy array"""
-        y_pred = y_pred[:, range(y_pred.shape[1]), y_true]
-    else:
-        raise AssertionError(f'ndim={ndim} not supported.')
-
-    # This is what y_true is treated as, but no need to perform operation
-    # y_true = np.ones(y_true.shape, dtype=np.uint8)
-
-    return None, y_pred
+    assert len(y_true) == len(y_pred)
+    assert y_pred.ndim == 2
+    return y_pred[range(len(y_pred)), y_true]
 
 
-def _fast_log_loss(y_true: Optional[np.ndarray], y_pred: np.ndarray) -> float:
-    """
-    Heavily optimized log_loss implementation that is valid under a specific context and avoids all sanity checks.
-    This is >100x faster than sklearn.
-
-    NOTE: You must first preprocess the input y_pred by calling `convert_multi_to_binary_fast_log_loss`.
-
-    1. There is no epsilon / value clipping, ensure y_pred ranges do not include `0` or `1` to avoid infinite loss.
-    2. `y_true` is ignored. It is assumed to be in the form `np.ones(len(y_pred), dtype=np.uint8)`
-      By assuming this form, we can avoid unnecessary computation.
-    3. `y_pred` must be formatted as a 1-dimensional ndarray.
-      The values are the prediction probability assigned to the ground truth class.
-      All other classes that are not the ground truth are ignored, as they are not necessary to calculate log_loss.
-    4. There is no support for sample weights.
-
-    Parameters
-    ----------
-    y_true : Unused
-        Ignored. y_true is assumed to be `1` for every row.
-
-    y_pred : array-like of float
-        The prediction probabilities of the ground truth class. shape = (n_samples,)
-
-    Returns
-    -------
-    loss
-        The negative log-likelihood
-    """
-    return - np.log(y_pred).mean()
+def mean_log_loss(true_class_prob: np.ndarray) -> float:
+    return - np.log(true_class_prob).mean()
 
 
 def _fast_log_loss_end_to_end(y_true, y_pred):
-    y_true, y_pred = convert_multi_to_binary_fast_log_loss(y_true=y_true, y_pred=y_pred)
-    return _fast_log_loss(y_true=y_true, y_pred=y_pred)
+    true_class_prob = extract_true_class_prob(y_true=y_true, y_pred=y_pred)
+    return mean_log_loss(true_class_prob=true_class_prob)
 
 
+"""
+Heavily optimized log_loss implementation that is valid under a specific context and avoids all sanity checks.
+This can be >100x faster than sklearn.
+
+NOTE: 
+1. You must first preprocess the input y_pred by calling `extract_true_class_prob` which converts to a 1-dimensional
+  array whose values are the prediction probability assigned to the ground truth class. All other classes that are not 
+  the ground truth are ignored, as they are not necessary to calculate log_loss.
+2. There is no epsilon / value clipping, ensure y_pred ranges do not include `0` or `1` to avoid infinite loss.
+3. There is no support for sample weights.
+
+Parameters
+----------
+y_true : ignored
+true_class_prob : array-like of float that contains the prediction probabilities of the ground truth class. shape = (n_samples,)
+
+Returns
+-------
+loss
+    The negative log-likelihood
+"""
 # Score function for probabilistic classification
 fast_log_loss = make_scorer('log_loss',
-                            _fast_log_loss,
+                            lambda _, true_class_prob: mean_log_loss(true_class_prob),
                             optimum=0,
                             greater_is_better=False,
                             needs_proba=True)

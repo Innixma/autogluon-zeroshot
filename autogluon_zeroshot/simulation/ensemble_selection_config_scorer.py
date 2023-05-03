@@ -86,8 +86,8 @@ class EnsembleSelectionConfigScorer(ConfigurationListScorer):
             #  as a preprocessing step to TabularModelPredictions.
             #  This would avoid ever having to pay the preprocessing time cost, and would massively reduce memory usage.
             eval_metric = _fast_log_loss.fast_log_loss
-            y_val, pred_val = _fast_log_loss.convert_multi_to_binary_fast_log_loss(y_true=y_val, y_pred=pred_val)
-            y_test, pred_test = _fast_log_loss.convert_multi_to_binary_fast_log_loss(y_true=y_test, y_pred=pred_test)
+            pred_val = _fast_log_loss.extract_true_class_prob(y_true=y_val, y_pred=pred_val)
+            pred_test = _fast_log_loss.extract_true_class_prob(y_true=y_test, y_pred=pred_test)
         else:
             eval_metric = get_metric(metric_name)
         return eval_metric, y_val, pred_val, y_test, pred_test
