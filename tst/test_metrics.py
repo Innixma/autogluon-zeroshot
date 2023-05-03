@@ -29,8 +29,8 @@ def test_fast_log_loss(y_true, y_pred):
     sk_loss = -sklearn.metrics.log_loss(y_true, y_pred)
     np.testing.assert_allclose(ag_loss, sk_loss)
 
-    y_true_opt, y_pred_opt = _fast_log_loss.convert_multi_to_binary_fast_log_loss(y_true, y_pred)
-    fast_loss = _fast_log_loss.fast_log_loss(y_true_opt, y_pred_opt)
+    y_pred_opt = _fast_log_loss.extract_true_class_prob(y_true, y_pred)
+    fast_loss = _fast_log_loss.fast_log_loss(y_true, y_pred_opt)
     fast_loss_end_to_end = _fast_log_loss.fast_log_loss_end_to_end(y_true, y_pred)
 
     np.testing.assert_allclose(ag_loss, fast_loss)
@@ -57,8 +57,8 @@ def test_fast_log_loss_large(num_samples, num_classes):
     sk_loss = -sklearn.metrics.log_loss(y_true, y_pred, labels=list(range(num_classes)))
     np.testing.assert_allclose(ag_loss, sk_loss)
 
-    y_true_opt, y_pred_opt = _fast_log_loss.convert_multi_to_binary_fast_log_loss(y_true, y_pred)
-    fast_loss = _fast_log_loss.fast_log_loss(y_true_opt, y_pred_opt)
+    y_pred_opt = _fast_log_loss.extract_true_class_prob(y_true, y_pred)
+    fast_loss = _fast_log_loss.fast_log_loss(y_true, y_pred_opt)
     fast_loss_end_to_end = _fast_log_loss.fast_log_loss_end_to_end(y_true, y_pred)
 
     np.testing.assert_allclose(ag_loss, fast_loss)
