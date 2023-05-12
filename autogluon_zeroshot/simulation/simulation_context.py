@@ -277,7 +277,7 @@ class ZeroshotSimulatorContext:
         self.df_raw = self.df_raw[self.df_raw.tid.isin(datasets)]
         self.df_results_by_dataset_vs_automl = self.df_results_by_dataset_vs_automl[self.df_results_by_dataset_vs_automl["tid"].isin(datasets)]
         self.df_results_by_dataset_automl['tid'] = self.df_results_by_dataset_automl.apply(lambda x: int(x["dataset"].split("_")[0]), axis=1)
-        self.df_results_by_dataset_automl = self.df_results_by_dataset_automl[self.df_results_by_dataset_vs_automl["tid"].isin(datasets)]
+        self.df_results_by_dataset_automl = self.df_results_by_dataset_automl[self.df_results_by_dataset_automl["tid"].isin(datasets)]
         self.df_results_by_dataset_automl.drop("tid", axis=1, inplace=True)
         self.df_metadata = self.df_metadata[self.df_metadata.tid.isin(datasets)]
 

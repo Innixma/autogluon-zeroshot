@@ -19,6 +19,7 @@ class ResultRow:
     test_error: float
     rank: float
     normalized_score: float
+    config_selected: list = None
 
 
 def automl_results(repo: EvaluationRepository, dataset_names: List[str], n_folds: int, rank_scorer, normalized_scorer) -> List[ResultRow]:
@@ -87,6 +88,7 @@ def zeroshot_results(
                         test_error=test_error,
                         rank=rank_scorer.rank(dataset_fold_name, test_error),
                         normalized_score=normalized_scorer.rank(dataset_fold_name, test_error),
+                        config_selected=portfolio_configs,
                     ))
     return rows_zeroshot
 
