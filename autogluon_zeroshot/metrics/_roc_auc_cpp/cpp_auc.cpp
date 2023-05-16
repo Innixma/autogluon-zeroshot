@@ -7,7 +7,21 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
   std::vector<uint32_t> storage1(len);
   std::vector<uint32_t> storage2(len);
 
-  std::array<uint32_t, 256 * 3> histograms = {0};
+  const int radix0_split = 5;
+  constexpr int radix0_size = 1 << radix0_split;
+  constexpr int radix0_size_minus_1 = radix0_size - 1;
+
+  const int radix1_split = 9;
+  constexpr int radix1_size = 1 << radix1_split;
+  constexpr int radix1_size_minus_1 = radix1_size - 1;
+
+  const int radix2_split = 23 - radix0_split - radix1_split;
+  constexpr int radix2_size = 1 << radix2_split;
+  constexpr int radix2_size_minus_1 = radix2_size - 1;
+
+  std::array<uint32_t, radix0_size> histogram0 = {0};
+  std::array<uint32_t, radix1_size> histogram1 = {0};
+  std::array<uint32_t, radix2_size> histogram2 = {0};
 
   // Add 1 to all floats so they are in range [1.0,2.0) to exploit IEEE-754 float memory layout
   for (size_t i = 0; i < len; ++i) {
@@ -22,47 +36,53 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
 
   // Fill 3 histograms for 8-bit radix's
   for (size_t i = 0; i < len; ++i) {
-    histograms[storage1[i] & 0xFF]++;
-    histograms[256 + (storage1[i] >> 8 & 0xFF)]++;
-    histograms[512 + (storage1[i] >> 16 & 0xFF)]++;
+    histogram0[storage1[i] & radix0_size_minus_1]++;
+    histogram1[storage1[i] >> radix0_split & radix1_size_minus_1]++;
+    histogram2[storage1[i] >> (radix0_split + radix1_split) & radix2_size_minus_1]++;
   }
 
   // Add incremental counts to each histogram entry
   uint32_t radix0_cnt = 0;
+  uint32_t temp0;
+
+  for (size_t i = 0; i < radix0_size; ++i) {
+    temp0 = histogram0[i] + radix0_cnt;
+    histogram0[i] = radix0_cnt - 1;
+    radix0_cnt = temp0;
+  }
+
   uint32_t radix1_cnt = 0;
+  uint32_t temp1;
+  for (size_t i = 0; i < radix1_size; ++i) {
+    temp1 = histogram1[i] + radix1_cnt;
+    histogram1[i] = radix1_cnt - 1;
+    radix1_cnt = temp1;
+  }
+
   uint32_t radix2_cnt = 0;
-  uint32_t temp;
-
-  for (size_t i = 0; i < 256; ++i) {
-    temp = histograms[i] + radix0_cnt;
-    histograms[i] = radix0_cnt - 1;
-    radix0_cnt = temp;
-
-    temp = histograms[i + 256] + radix1_cnt;
-    histograms[i + 256] = radix1_cnt - 1;
-    radix1_cnt = temp;
-
-    temp = histograms[i + 512] + radix2_cnt;
-    histograms[i + 512] = radix2_cnt - 1;
-    radix2_cnt = temp;
+  uint32_t temp2;
+  for (size_t i = 0; i < radix2_size; ++i) {
+    temp2 = histogram2[i] + radix2_cnt;
+    histogram2[i] = radix2_cnt - 1;
+    radix2_cnt = temp2;
   }
 
   // Sort radix0 (least significant bit)
   for (size_t i = 0; i < len; ++i) {
     uint32_t entry = storage1[i];
-    storage2[++histograms[entry & 0xFF]] = entry;
+    storage2[++histogram0[entry & radix0_size_minus_1]] = entry;
   }
 
   // Sort radix1
   for (size_t i = 0; i < len; ++i) {
     uint32_t entry = storage2[i];
-    storage1[++histograms[256 + (entry >> 8 & 0xFF)]] = entry;
+    storage1[++histogram1[entry >> radix0_split & radix1_size_minus_1]] = entry;
   }
 
   // Sort radix2 (most significant bit)
   for (size_t i = 0; i < len; ++i) {
     uint32_t entry = storage1[i];
-    storage2[++histograms[512 + (entry >> 16 & 0xFF)]] = entry;
+    storage2[++histogram2[entry >> (radix0_split + radix1_split) & radix2_size_minus_1]] = entry;
   }
 
   // Perform binary non-weighted roc_auc calulation
