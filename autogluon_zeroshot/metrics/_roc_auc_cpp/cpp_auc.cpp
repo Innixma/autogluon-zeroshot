@@ -99,7 +99,7 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
     auc += !label * true_cnt;
   }
 
-  return (double) auc / (true_cnt * false_cnt);
+  return static_cast<double>(auc) / (true_cnt * false_cnt);
 }
 
 extern "C" {
