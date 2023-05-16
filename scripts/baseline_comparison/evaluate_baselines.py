@@ -17,7 +17,7 @@ from autogluon_zeroshot.utils.normalized_scorer import NormalizedScorer
 from autogluon_zeroshot.utils.rank_utils import RankScorer
 from dataclasses import dataclass
 
-from scripts.baseline_comparison.baselines import zeroshot_results, automl_results, ResultRow, evaluate_tuning
+from scripts.baseline_comparison.baselines import automl_results, ResultRow, evaluate_tuning, zeroshot_results_ray
 from scripts.baseline_comparison.plot_utils import show_latex_table, show_cdf, MethodStyle
 
 
@@ -90,11 +90,11 @@ def list_experiments(n_datasets: int, n_folds: int, expname: str, repo_version: 
         ),
         Experiment(
             expname=expname, name=f"zeroshot-multiple-portfolio-sizes-{expname}",
-            run_fun=lambda: zeroshot_results(**experiment_common_kwargs),
+            run_fun=lambda: zeroshot_results_ray(**experiment_common_kwargs),
         ),
         Experiment(
             expname=expname, name=f"zeroshot-multiple-caruana-sizes-{expname}",
-            run_fun=lambda : zeroshot_results(
+            run_fun=lambda : zeroshot_results_ray(
                 ensemble_sizes=[20, 40, 80], portfolio_sizes=[20, 40], **experiment_common_kwargs
             )
         ),
