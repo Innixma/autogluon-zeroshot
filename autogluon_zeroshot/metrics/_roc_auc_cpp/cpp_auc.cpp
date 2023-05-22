@@ -98,7 +98,6 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
 
   // Perform binary non-weighted roc_auc summation on sorted entries
   uint64_t true_cnt = 0;
-  uint64_t false_cnt = 0;
   uint64_t auc = 0;
 
   for (size_t i = 0; i < len; ++i) {
@@ -106,11 +105,10 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
     bool label = entry >> 24 & 0xFF;
 
     true_cnt += label;
-    false_cnt += !label;
     auc += !label * true_cnt;
   }
 
-  return static_cast<double>(auc) / (true_cnt * false_cnt);
+  return static_cast<double>(auc) / (true_cnt * (len - true_cnt));
 }
 
 extern "C" {
