@@ -33,7 +33,7 @@ class EnsembleSelectionConfigScorer(ConfigurationListScorer):
                  max_fold: Optional[float] = None,
                  backend: str = 'native',
                  use_fast_metrics: bool = True,
-                 proxy_fit_metric_map: Optional[Union[dict, str]] = 'default',
+                 proxy_fit_metric_map: Optional[Union[dict, str]] = None,  # TODO: Add unit test
                  ):
         """
         TODO: Add docstring
@@ -43,7 +43,7 @@ class EnsembleSelectionConfigScorer(ConfigurationListScorer):
             the value eval_metric will be used during the weighted ensemble fitting process as a proxy.
             For example, the proxy metric could be faster to compute while producing a similar end result.
             If None: Do not use proxy metrics, equivalent to {}.
-            If 'default': set to {'roc_auc': 'log_loss'}, making 'log_loss' a proxy to 'roc_auc'
+            If 'roc_auc_to_log_loss': set to {'roc_auc': 'log_loss'}, making 'log_loss' a proxy to 'roc_auc'
         """
         super(EnsembleSelectionConfigScorer, self).__init__(datasets=datasets)
         if zeroshot_gt is None:
@@ -66,7 +66,7 @@ class EnsembleSelectionConfigScorer(ConfigurationListScorer):
         if proxy_fit_metric_map is None:
             proxy_fit_metric_map = {}
         elif isinstance(proxy_fit_metric_map, str):
-            assert proxy_fit_metric_map == 'default'
+            assert proxy_fit_metric_map == 'roc_auc_to_log_loss'
             proxy_fit_metric_map = {'roc_auc': 'log_loss'}  # log_loss is fast to compute and a good proxy for roc_auc
         self.proxy_fit_metric_map = proxy_fit_metric_map
 
