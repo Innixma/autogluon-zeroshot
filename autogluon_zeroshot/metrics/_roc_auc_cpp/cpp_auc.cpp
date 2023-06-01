@@ -1,16 +1,16 @@
+#include <algorithm>
 #include <array>
+#include <limits>
 #include <vector>
 
 
 inline uint32_t mantissa(uint32_t a) { return a & 0x7FFFFF; }
 
 /*
- * This function is a faster single-threaded implementation of the binary non-weighted ROC AUC metric.
- * The primary speed-up come from a radix sort on the 23 bits of the mantissa of float values.
- * This function makes several assumptions:
- *   - y_true and y_pred are both of size len
- *   - y_pred values are in range [0.0, 1.0)
- * If these assumptions are violated, the function may crash or return incorrect results.
+ * This function is a fast, single-threaded implementation of the binary non-weighted ROC AUC metric.
+ * The primary speed-up comes from a radix sort on the 23 bits of the mantissa of float values.
+ * This function assumes y_true and y_pred are both of size `len`.
+ * If entries in y_pred are outside the range [0.0, 1.0], they will be clamped into that range.
  */
 double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
 
@@ -35,9 +35,9 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
   std::array<uint32_t, radix1_size> histogram1 = {0};
   std::array<uint32_t, radix2_size> histogram2 = {0};
 
-  // Add 1.0 to all floats so they are in range [1.0,2.0) to exploit IEEE-754 float memory layout
+  // Add 1.0 to all floats and clamp to range [1.0,2.0) to exploit IEEE-754 float memory layout
   for (size_t i = 0; i < len; ++i) {
-    y_pred[i] += 1.0;
+    y_pred[i] = std::clamp(y_pred[i] + 1.0, 1.0, 2.0 - std::numeric_limits<float>::epsilon());
   }
 
   // Interpret float32 as uint32. Put bool in 8 MSBs and float mantissa in 23 LSBs of the uint32. Save to storage vector.
