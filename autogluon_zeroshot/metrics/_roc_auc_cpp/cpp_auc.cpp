@@ -2,6 +2,8 @@
 #include <vector>
 
 
+inline uint32_t mantissa(uint32_t a) { return a & 0x7FFFFF; }
+
 /*
  * This function is a faster single-threaded implementation of the binary non-weighted ROC AUC metric.
  * The primary speed-up come from a radix sort on the 23 bits of the mantissa of float values.
@@ -10,7 +12,6 @@
  *   - y_pred values are in range [0.0, 1.0)
  * If these assumptions are violated, the function may crash or return incorrect results.
  */
-
 double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
 
   std::vector<uint32_t> storage1(len);
@@ -97,18 +98,29 @@ double radix_roc_auc(bool* y_true, float* y_pred, size_t len) {
   }
 
   // Perform binary non-weighted roc_auc summation on sorted entries
-  uint64_t true_cnt = 0;
-  uint64_t auc = 0;
+  uint64_t total_true_cnt = 0;
+  uint64_t total_false_cnt = 0;
+  uint64_t last_unique_true_cnt = 0;
+  uint64_t last_unique_false_cnt = 0;
+  uint64_t rect_auc = 0;
+  uint64_t tri_auc = 0;
 
   for (size_t i = 0; i < len; ++i) {
     uint32_t entry = storage2[len - 1 - i];
     bool label = entry >> 24 & 0xFF;
 
-    true_cnt += label;
-    auc += !label * true_cnt;
+    total_true_cnt += label;
+    total_false_cnt += !label;
+    rect_auc += !label * last_unique_true_cnt;
+
+    // Avoid code branches from if statements by using branchless assignments
+    bool diff = (i == len-1) || (mantissa(entry) != mantissa(storage2[len - 2 - i]));
+    tri_auc += diff * (total_true_cnt - last_unique_true_cnt) * (total_false_cnt - last_unique_false_cnt);
+    last_unique_true_cnt = diff * total_true_cnt + !diff * last_unique_true_cnt;
+    last_unique_false_cnt = diff * total_false_cnt + !diff * last_unique_false_cnt;
   }
 
-  return static_cast<double>(auc) / (true_cnt * (len - true_cnt));
+  return (rect_auc + tri_auc / 2.0) / (total_true_cnt * total_false_cnt);
 }
 
 extern "C" {
